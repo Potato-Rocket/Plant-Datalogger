@@ -56,7 +56,6 @@ target_include_directories(Plant-Datalogger PRIVATE
 # Add any user requested libraries
 target_link_libraries(Plant-Datalogger 
         hardware_rtc
-        pico_util
         )
 
 pico_add_extra_outputs(Plant-Datalogger)
