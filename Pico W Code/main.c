@@ -2,8 +2,13 @@
 #include "pico/stdlib.h"
 #include "pico/util/datetime.h"
 #include "hardware/rtc.h"
+#include "pico/cyw43_arch.h"
 
 #define LED_PIN 22
+
+// MAC address is 28:CD:C1:0E:C6:5B
+#define ssid "WPI-PSK"
+#define pass "photosynthesize"
 
 typedef struct {
     int count;
@@ -12,14 +17,17 @@ typedef struct {
     char* datetime_str;
 } userdata_t;
 
-void init_all();
+int init_all();
 
 bool cb_update_time(struct repeating_timer *t);
 
 int64_t cb_led_off(__unused alarm_id_t id, __unused void *userdata);
 
 int main() {
-    init_all();
+    int init = init_all();
+    if (init != 0) {
+        return init;
+    }
 
     userdata_t data = {
         .count = 0,
@@ -43,17 +51,33 @@ int main() {
     while (true) {
         tight_loop_contents();
     }
-
 }
 
-void init_all() {
+int init_all() {
     stdio_init_all();
+    sleep_ms(5000);
+
+    if (0 != cyw43_arch_init_with_country(CYW43_COUNTRY_USA)) {
+        printf("Wi-Fi init failed!\n");
+        return -1;
+    }
+    printf("Wi-Fi init success!\n");
+
+    cyw43_arch_enable_sta_mode();
+    
+    if (0 != cyw43_arch_wifi_connect_timeout_ms(ssid, pass,
+        CYW43_AUTH_WPA2_AES_PSK, 10000)) {
+        printf("Wifi connection failed!\n");
+        return -1;
+    }
+    printf("Wifi connection success!\n");
 
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_set_drive_strength(LED_PIN, GPIO_DRIVE_STRENGTH_12MA);
     
     rtc_init();
+    return 0;
 }
 
 bool cb_update_time(struct repeating_timer *t) {
