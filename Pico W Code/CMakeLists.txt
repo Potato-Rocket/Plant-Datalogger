@@ -54,7 +54,7 @@ target_include_directories(Plant-Datalogger PRIVATE
 )
 
 # Add any user requested libraries
-target_link_libraries(Plant-Datalogger 
+target_link_libraries(Plant-Datalogger
         hardware_rtc
         )
 
