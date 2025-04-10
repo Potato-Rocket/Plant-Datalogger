@@ -42,8 +42,6 @@ int main() {
 
     init_modules();
 
-    sleep_ms(5000);
-
     int init = init_wifi();
     if (init != 0) {
         return init;
@@ -71,7 +69,7 @@ int init_modules() {
 }
 
 int init_wifi() {
-    if (0 != cyw43_arch_init_with_country(CYW43_COUNTRY_USA)) {
+    if (cyw43_arch_init()) {
         printf("Wi-Fi init failed!\n");
         return -1;
     }
@@ -79,7 +77,7 @@ int init_wifi() {
 
     cyw43_arch_enable_sta_mode();
     
-    if (0 != cyw43_arch_wifi_connect_timeout_ms(ssid, pass,
+    if (cyw43_arch_wifi_connect_timeout_ms(ssid, pass,
         CYW43_AUTH_WPA2_AES_PSK, 10000)) {
         printf("Wifi connection failed!\n");
         return -1;
