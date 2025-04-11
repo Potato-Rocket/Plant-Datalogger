@@ -14,28 +14,32 @@ int main() {
         printf("Serial connection success!\n");
     }
 
-    // try to connect to wifi
+    // try to connect to WiFi
     if (!wifi_init()) {
         return -1;
     }
 
-    // try to setup rtc
+    // try to setup RTC
     if (!rtc_setup()) {
         return -1;
     }
-    
+
     // try to initialize sensors
     if (!init_sensors()) {
         return -1;
     }
 
     // set up variables for the update loop
-    uint64_t prev_time = 0;
+    uint64_t prev_loop = 0;
 
     while (true) {
-        if (time_us_64() - prev_time > LOOP_DELAY_US) {
+        if (should_check_wifi()) {
+            wifi_check_reconnect();
+        }
+        
+        if (time_us_64() - prev_loop > LOOP_DELAY_US) {
             rtc_print();
-            prev_time = time_us_64();
+            prev_loop = time_us_64();
         }
     }
 
