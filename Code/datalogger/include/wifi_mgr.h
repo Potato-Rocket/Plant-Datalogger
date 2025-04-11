@@ -6,4 +6,6 @@ bool wifi_init(void);
 
 bool should_check_wifi(void);
 
-bool wifi_check_reconnect(void);
+void wifi_check_reconnect(void);
+
+bool is_wifi_connected(void);

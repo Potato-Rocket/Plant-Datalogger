@@ -7,6 +7,10 @@ typedef struct {
     float temp_celsius;
 } dht_reading_t;
 
-bool init_sensors(void);
+void init_sensors(void);
 
-void read_from_dht(dht_reading_t *result);
+bool should_update_sensors(void);
+
+bool update_sensors(void);
+
+void print_readings(void);

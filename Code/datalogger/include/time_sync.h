@@ -2,6 +2,8 @@
 
 #include "pico/stdlib.h"
 
-bool rtc_setup(void);
+bool rtc_safe_init(void);
 
-void rtc_print(void);
+void print_datetime(void);
+
+bool rtc_synchronized(void);
