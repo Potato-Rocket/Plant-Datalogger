@@ -4,9 +4,8 @@
 
 #include "params.h"
 #include "wifi_mgr.h"
-#include "rtc_ntp_sync.h"
-
-#define LED_PIN 22
+#include "time_sync.h"
+#include "sensors.h"
 
 int main() {
     // wait up to ten seconds for the serial port to open
@@ -15,18 +14,18 @@ int main() {
         printf("Serial connection success!\n");
     }
 
-    // set up indicator light
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_set_drive_strength(LED_PIN, GPIO_DRIVE_STRENGTH_12MA);
-
     // try to connect to wifi
-    if (!rtc_setup()) {
+    if (!wifi_init()) {
         return -1;
     }
 
-    // try to connect to wifi
-    if (!wifi_init()) {
+    // try to setup rtc
+    if (!rtc_setup()) {
+        return -1;
+    }
+    
+    // try to initialize sensors
+    if (!init_sensors()) {
         return -1;
     }
 

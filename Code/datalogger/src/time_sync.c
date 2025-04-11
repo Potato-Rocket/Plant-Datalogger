@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "rtc_ntp_sync.h"
+#include "time_sync.h"
 #include "params.h"
 
 #include "pico/stdlib.h"
