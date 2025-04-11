@@ -39,6 +39,11 @@
     "files.associations": {
         "stdio.h": "c",
         "datetime.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "cyw43_arch.h": "c",
+        "rtc.h": "c",
+        "rtc_ntp.h": "c",
+        "rtc_ntp_sync.h": "c",
+        "params.h": "c"
     }
 }

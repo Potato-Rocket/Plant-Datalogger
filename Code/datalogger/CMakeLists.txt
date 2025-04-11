@@ -35,7 +35,9 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(datalogger main.c )
+file(GLOB_RECURSE SOURCES "src/*.c")
+
+add_executable(datalogger ${SOURCES})
 
 pico_set_program_name(datalogger "Plant Datalogger")
 pico_set_program_version(datalogger "0.1")
@@ -51,6 +53,7 @@ target_link_libraries(datalogger
 # Add the standard include files to the build
 target_include_directories(datalogger PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/include
         )
 
 # Add any user requested libraries
