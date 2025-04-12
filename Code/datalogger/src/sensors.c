@@ -30,6 +30,7 @@ void init_sensors(void) {
 
     // set up DHT11
     gpio_init(DHT_PIN);
+    gpio_put(LED_PIN, 0);
 
     timeout = time_us_64() + update_delay_us;
     
@@ -52,6 +53,8 @@ void print_readings(void) {
     printf("Temperature: %.0f°C  Humidity: %.0f%%\n",
         current_dht.temp_celsius, current_dht.humidity);
 }
+
+// TODO: Set up, calibrate soil moisture sensor
 
 static bool read_dht(dht_reading_t *result) {
     // Initialize result to invalid values

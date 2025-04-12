@@ -6,8 +6,8 @@
 #include "pico/cyw43_arch.h"
 
 // MAC address is 28:CD:C1:0E:C6:5B
-static const char* ssid = "WPI-PSK";
-static const char* pass = "photosynthesize";
+#define SSID "WPI-PSK"
+#define PASS "photosynthesize"
 
 static bool is_connected = false;
 
@@ -20,7 +20,7 @@ static uint64_t timeout = 0;
 
 bool wifi_init(void) {
     // initialize the WiFi chip
-    if (cyw43_arch_init()) {
+    if (cyw43_arch_init() != 0) {
         printf("Wi-Fi init failed!\n");
         return false;
     }
@@ -30,8 +30,8 @@ bool wifi_init(void) {
     cyw43_arch_enable_sta_mode();
 
     // connect to the network
-    if (cyw43_arch_wifi_connect_timeout_ms(ssid, pass,
-        CYW43_AUTH_WPA2_AES_PSK, init_timeout_ms)) {
+    if (cyw43_arch_wifi_connect_timeout_ms(SSID, PASS,
+        CYW43_AUTH_WPA2_AES_PSK, init_timeout_ms) != 0) {
         printf("Wifi connection failed!\n");
         return false;
     }
@@ -56,8 +56,8 @@ void wifi_check_reconnect(void) {
     }
     printf("WiFi disconnected! Attempting reconnection...");
 
-    if (cyw43_arch_wifi_connect_timeout_ms(ssid, pass,
-        CYW43_AUTH_WPA2_AES_PSK, init_timeout_ms)) {
+    if (cyw43_arch_wifi_connect_timeout_ms(SSID, PASS,
+        CYW43_AUTH_WPA2_AES_PSK, init_timeout_ms) != 0) {
         printf("Wifi reconnection failed!\n");
         retry_delay_us *= 2;
         if (retry_delay_us > max_retry_delay) {
@@ -75,6 +75,6 @@ void wifi_check_reconnect(void) {
     return;
 }
 
-bool is_wifi_connected(void) {
+bool wifi_connected(void) {
     return is_connected;
 }

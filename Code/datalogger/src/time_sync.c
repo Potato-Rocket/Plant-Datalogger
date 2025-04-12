@@ -11,33 +11,9 @@
 #include "lwip/pbuf.h"
 #include "lwip/dns.h"
 
-static const uint32_t rtc_init_timeout_us = 5000000;  // 5sec
-static const uint32_t ntp_timeout_us = 15000000;  // 15sec
-
-// create and set default date and time
-static const datetime_t t_default = {
-    .year  = 2025,
-    .month = 1,
-    .day   = 1,
-    .dotw  = 3,
-    .hour  = 0,
-    .min   = 0,
-    .sec   = 0
-};
-static datetime_t t_current;
-
-static bool is_synchronized = false;
-
-// buffer and pointer for storing the datetime string
-static char datetime_buf[256];
-static char* datetime_str = &datetime_buf[0];
-
 // NTP server configuration
 #define NTP_PORT 123
 #define NTP_SERVER "pool.ntp.org"  // NTP pool address
-
-// NTP constants
-#define NTP_TIMESTAMP_DELTA 2208988800ull  // Seconds between 1900 (NTP epoch) and 1970 (Unix epoch)
 
 // NTP packet structure (48 bytes)
 typedef struct __attribute__((packed)) {
@@ -58,20 +34,53 @@ typedef struct __attribute__((packed)) {
     uint32_t tx_ts_frac;     // Transmit timestamp fraction
 } ntp_packet_t;
 
+// create and set default date and time
+static const datetime_t t_default = {
+    .year  = 2025,
+    .month = 1,
+    .day   = 1,
+    .dotw  = 3,
+    .hour  = 0,
+    .min   = 0,
+    .sec   = 0
+};
+static datetime_t t_current;
+
+// buffer and pointer for storing the datetime string
+static char datetime_buf[256];
+static char* datetime_str = &datetime_buf[0];
+
+static const uint32_t rtc_init_timeout_us = 5000000;  // 5sec
+static const uint32_t ntp_timeout_us = 15000000;  // 15sec
+static const uint64_t sync_timeout_us = 60000000;  // 1min
+
+static const uint32_t base_retry_delay = ntp_timeout_us;  // 1min
+static const uint32_t max_retry_delay = 900000000;  // 1min
+
+static uint32_t sync_retry_delay = base_retry_delay;
+static uint8_t sync_attempts = 0;
+static uint64_t timeout = 0;
+static uint64_t sync_timeout = 0;
+
+// Whether the RTC has been synced recently
+static bool is_synchronized = false;
+static bool init_flag = false;
+
+// NTP constants
+static const uint64_t timestamp_delta = 2208988800;  // Seconds between 1900 (NTP epoch) and 1970 (Unix epoch)
+
 // UDP connection
 static struct udp_pcb *ntp_pcb = NULL;
 static ip_addr_t ntp_server_addr;
 static bool ntp_request_pending = false;
-static uint64_t timeout = 0;
 
 static bool ntp_send_request(void);
 
-static uint32_t safe_ntohl(uint32_t value);
+static void ntp_handle_error(void);
 
 static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     const ip_addr_t* addr, u16_t port);
 
-// DNS resolution callback
 static void ntp_dns_callback(const char* name, const ip_addr_t* addr,
     void *arg);
 
@@ -98,6 +107,9 @@ void print_datetime(void) {
 }
 
 bool rtc_synchronized(void) {
+    if (is_synchronized && time_us_64() > sync_timeout) {
+        is_synchronized = false;
+    }
     return is_synchronized;
 }
 
@@ -113,10 +125,12 @@ bool ntp_init(void) {
     udp_recv(ntp_pcb, ntp_recv_callback, NULL);
     
     printf("NTP initialized\n");
+
     while (!is_synchronized) {
         ntp_request_time();
     }
-
+    init_flag = true;
+    
     return true;
 }
 
@@ -125,10 +139,13 @@ bool ntp_request_time(void) {
         // Check if previous request timed out
         if (time_us_64() > timeout) {
             printf("NTP request timed out\n");
-            ntp_request_pending = false;
+            ntp_handle_error();
         } else {
             return false; // Still waiting for response
         }
+    }
+    if (!ntp_request_pending && time_us_64() < timeout) {
+        return false;
     }
 
     // Resolve NTP server address
@@ -145,8 +162,23 @@ bool ntp_request_time(void) {
         return true;
     } else {
         printf("DNS resolution failed with error %d\n", err);
+        ntp_handle_error();
         return false;
     }
+}
+
+static void ntp_handle_error(void) {
+    ntp_request_pending = false;
+    if (sync_attempts > 0 && init_flag) {
+        timeout = time_us_64() + sync_retry_delay;
+        sync_retry_delay *= 2;
+        if (sync_retry_delay > max_retry_delay) {
+            sync_retry_delay = max_retry_delay;
+        }
+    } else {
+        timeout = time_us_64();
+    }
+    sync_attempts++;
 }
 
 static void ntp_dns_callback(const char* name, const ip_addr_t* addr, void* arg) {
@@ -160,11 +192,8 @@ static void ntp_dns_callback(const char* name, const ip_addr_t* addr, void* arg)
     memcpy(&ntp_server_addr, addr, sizeof(ip_addr_t));
     printf("NTP server resolved to %s\n", ipaddr_ntoa(addr));
     
-    // Send NTP request and check for errors
-    if (!ntp_send_request()) {
-        printf("NTP request failed after DNS resolution\n");
-        ntp_request_pending = false;
-    }
+    // Send NTP request
+    ntp_send_request();
 }
 
 static bool ntp_send_request(void) {
@@ -172,6 +201,7 @@ static bool ntp_send_request(void) {
     struct pbuf* p = pbuf_alloc(PBUF_TRANSPORT, sizeof(ntp_packet_t), PBUF_RAM);
     if (p == NULL) {
         printf("Failed to allocate packet buffer for NTP request\n");
+        ntp_handle_error();
         return false;
     }
 
@@ -188,12 +218,18 @@ static bool ntp_send_request(void) {
     
     if (err != ERR_OK) {
         printf("Failed to send NTP request, error: %d\n", err);
+        ntp_handle_error();
         return false;
     }
     
     printf("NTP request sent\n");
     ntp_request_pending = true;
-    timeout = time_us_64() + ntp_timeout_us;
+    // Sends the second request immediately after the first because of weird networking
+    if (sync_attempts > 0) {
+        timeout = time_us_64() + ntp_timeout_us;
+    } else {
+        timeout = time_us_64();
+    }
     return true;
 }
 
@@ -204,6 +240,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
 
     if (p == NULL) {
         printf("Received NULL NTP response\n");
+        ntp_handle_error();
         return;
     }
     printf("Received NTP response, processing...\n");
@@ -212,6 +249,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     if (p->len != sizeof(ntp_packet_t)) {
         printf("NTP of incorrect size: %d bytes\n", p->len);
         pbuf_free(p);
+        ntp_handle_error();
         return;
     }
     printf("Packet size OK: %d bytes\n", p->len);
@@ -223,7 +261,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     uint32_t tx_seconds = ntohl(ntp_packet->tx_ts_sec);
 
     // Adjust for NTP epoch (1900) to Unix epoch (1970)
-    uint32_t unix_seconds = tx_seconds - NTP_TIMESTAMP_DELTA;
+    uint32_t unix_seconds = tx_seconds - timestamp_delta;
     
     // Convert to datetime structure
     time_t unix_time = (time_t)unix_seconds;
@@ -232,6 +270,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     if (tm == NULL) {
         printf("Failed to convert NTP time (gmtime returned NULL)\n");
         pbuf_free(p);
+        ntp_handle_error();
         return;
     }
     
@@ -249,8 +288,11 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     // Set RTC with synchronized time
     rtc_set_datetime(&t);
     is_synchronized = true;
+    sync_timeout = time_us_64() + sync_timeout_us;
+    sync_attempts = 0;
+    sync_retry_delay = base_retry_delay;
     
-    printf("RTC synchronized with NTP.");
+    printf("RTC synchronized with NTP\n");
     print_datetime();
     
     pbuf_free(p);

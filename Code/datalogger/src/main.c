@@ -25,7 +25,9 @@ int main() {
         return -1;
     }
 
-    ntp_init();
+    if (!ntp_init()) {
+        return -1;
+    }
 
     // initialize sensors
     init_sensors();
@@ -36,11 +38,15 @@ int main() {
     while (true) {
         if (should_check_wifi()) wifi_check_reconnect();
 
+        if (wifi_connected() && !rtc_synchronized()) {
+            ntp_request_time();
+        }
+
         if (should_update_sensors()) {
             if (rtc_synchronized()) {
                 print_datetime();
             } else {
-                printf("Datetime not synchronized!");
+                printf("Datetime not synchronized!\n");
             }
             if (update_sensors()) {
                 print_readings();

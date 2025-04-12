@@ -8,4 +8,4 @@ bool should_check_wifi(void);
 
 void wifi_check_reconnect(void);
 
-bool is_wifi_connected(void);
+bool wifi_connected(void);
