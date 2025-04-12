@@ -16,7 +16,7 @@ static const uint32_t init_timeout_ms = 10000;  // 10sec
 static const uint32_t base_retry_delay = 10000000;  // 10sec
 static const uint32_t max_retry_delay = 300000000;  // 5min
 static uint32_t retry_delay_us = base_retry_delay;
-static uint64_t timeout;
+static uint64_t timeout = 0;
 
 bool wifi_init(void) {
     // initialize the WiFi chip

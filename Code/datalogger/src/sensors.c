@@ -5,8 +5,13 @@
 #define LED_PIN 22
 #define DHT_PIN 4
 
+typedef struct {
+    float humidity;
+    float temp_celsius;
+} dht_reading_t;
+
 static const uint64_t update_delay_us = 1000000;  // 1sec
-static uint64_t timeout;
+static uint64_t timeout = 0;
 
 static bool read_dht(dht_reading_t *result);
 
