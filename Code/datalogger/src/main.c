@@ -5,6 +5,8 @@
 #include "wifi_mgr.h"
 #include "time_sync.h"
 #include "sensors.h"
+// TODO: Add module for OLED display
+// TODO: Add module for SD card reader
 
 static const int32_t stdio_init_timeout_us = 5000000;  // 5sec
 

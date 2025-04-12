@@ -30,7 +30,7 @@ void init_sensors(void) {
 
     // set up DHT11
     gpio_init(DHT_PIN);
-    gpio_put(LED_PIN, 0);
+    gpio_put(LED_PIN, 0);  // TODO: Make dependent on soil moisture level
 
     timeout = time_us_64() + update_delay_us;
     

@@ -100,11 +100,15 @@ bool rtc_safe_init(void) {
     return true;
 }
 
+// TODO: Make return string instead
+// TODO: Pretty-pringing should offset timezone
 void print_datetime(void) {
     rtc_get_datetime(&t_current);
     datetime_to_str(datetime_str, sizeof(datetime_buf), &t_current);
     printf("Current time: %s\n", datetime_str);
 }
+
+// TODO: Add function to return ISO8601 standard timestamp
 
 bool rtc_synchronized(void) {
     if (is_synchronized && time_us_64() > sync_timeout) {
@@ -130,7 +134,7 @@ bool ntp_init(void) {
         ntp_request_time();
     }
     init_flag = true;
-    
+
     return true;
 }
 
