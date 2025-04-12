@@ -13,7 +13,7 @@
 
 // NTP server configuration
 #define NTP_PORT 123
-#define NTP_SERVER "pool.ntp.org"  // NTP pool address
+#define NTP_SERVER "pool.ntp.org"
 #define TIME_ZONE_OFFSET -4
 
 // NTP packet structure (48 bytes)
@@ -46,48 +46,83 @@ static const datetime_t t_default = {
     .sec   = 0
 };
 
-// buffer and pointer for storing the datetime string
+// buffer for storing the local datetime string
 static char datetime_buf[256];
+// buffer for storing the UTC timestamp string
 static char timestamp_buf[256];
 
+// how long to wait for the RTC to be running
 static const uint32_t rtc_init_timeout_us = 5000000;  // 5sec
+// how long to wait for NTP operations to timeout
 static const uint32_t ntp_timeout_us = 15000000;  // 15sec
-static const uint64_t sync_timeout_us = 60000000;  // 1min
+// how long to wait for the first NTP request sent to timeout
+static const uint32_t ntp_init_timeout_us = 1000000;  // 1sec
+// how long to wait before resyncing is needed
+static const uint64_t sync_timeout_us = 86400000000;  // 24hr
 
+// baseline wait between failed NTP requests
 static const uint32_t base_retry_delay = ntp_timeout_us;  // 15sec
+// maximum wait between failed NTP requests
 static const uint32_t max_retry_delay = 900000000;  // 15min
 
+// dynamic wait between failed NTP requests
 static uint32_t sync_retry_delay = base_retry_delay;
+// number of failed NTP requests
 static uint8_t sync_attempts = 0;
+// tracks when a the NTP request times out, or a new one can happen
 static uint64_t timeout = 0;
+// tracks when the system will need to be resynced
 static uint64_t sync_timeout = 0;
 
-// Whether the RTC has been synced recently
+// whether the RTC has been synced recently
 static bool is_synchronized = false;
+// whether the RTC has been synced at least once
 static bool init_flag = false;
 
-// NTP constants
-static const uint64_t timestamp_delta = 2208988800;  // Seconds between 1900 (NTP epoch) and 1970 (Unix epoch)
+// offset between NTP epoch (1900) and the Unix epoch (1970)
+static const uint64_t timestamp_delta = 2208988800;  // 70yr
 
-// UDP connection
+// UDP control block
 static struct udp_pcb *ntp_pcb = NULL;
+// NTP server IP address
 static ip_addr_t ntp_server_addr;
+// whether an NTP action is in progress
 static bool ntp_request_pending = false;
 
-static bool ntp_send_request(void);
-
+/**
+ * Handles any sort of error from the NTP sync routine. Resets the pending flag,
+ * updates the retry delay, and sets the timeout until the next attempt.
+ */
 static void ntp_handle_error(void);
 
-static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
-    const ip_addr_t* addr, u16_t port);
+/**
+ * Function to create an NTP request packet, and send it to the resolved IP
+ * address via the UDP control block. Handles errors gracefully.
+ * 
+ * @return `true` if sent successfully, `false` otherwise
+ */
+static bool ntp_send_request(void);
 
+/**
+ * Callback function for when an IP address for the NTP server is successfully
+ * resolved. Checks that the address is valid, then sends the NTP request.
+ */
 static void ntp_dns_callback(const char* name, const ip_addr_t* addr,
     void *arg);
+
+/**
+ * Callback function for when a NTP packet is recieved. Tries to set the RTC
+ * based on the timestamp. Handles errors gracefully.
+ */
+static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
+    const ip_addr_t* addr, u16_t port);
 
 bool rtc_safe_init(void) {
     // initialize the RTC
     rtc_init();
+    // set the default datetime
     rtc_set_datetime(&t_default);
+    // wait for the RTC to start running
     timeout = time_us_64() + rtc_init_timeout_us;
     while (!rtc_running()) {
         if (time_us_64() > timeout) {
@@ -101,32 +136,41 @@ bool rtc_safe_init(void) {
 }
 
 char* get_pretty_datetime(void) {
+    // read from the RTC
     datetime_t t;
     rtc_get_datetime(&t);
 
+    // convert to epoch time
     time_t epoch;
     datetime_to_time(&t, &epoch);
+    // adjust to the local timezone
     epoch += TIME_ZONE_OFFSET * 3600;
+    // convert to a standard datetime struct
     struct tm dt = *gmtime(&epoch);
 
+    // return the pointer to a formatted string
     strftime(datetime_buf, sizeof(datetime_buf),
              "%A, %B %d, %Y  %H:%M:%S", &dt);
     return datetime_buf;
 }
 
 char* get_timestamp(void) {
+    // read from the RTC
     datetime_t t;
     rtc_get_datetime(&t);
 
+    // convert to a standard datetime format
     struct tm dt;
     datetime_to_tm(&t, &dt);
 
+    // return the pointer to a formatted string
     strftime(timestamp_buf, sizeof(timestamp_buf),
              "%Y-%m-%dT%H:%M:%SZ", &dt);
     return timestamp_buf;
 }
 
 bool rtc_synchronized(void) {
+    // if it has been long enough since last synced, trip the flag
     if (is_synchronized && time_us_64() > sync_timeout) {
         is_synchronized = false;
     }
@@ -155,8 +199,9 @@ bool ntp_init(void) {
 }
 
 bool ntp_request_time(void) {
+    // if a request is already pending
     if (ntp_request_pending) {
-        // Check if previous request timed out
+        // check if previous request timed out
         if (time_us_64() > timeout) {
             printf("NTP request timed out!\n");
             ntp_handle_error();
@@ -164,15 +209,16 @@ bool ntp_request_time(void) {
             return false; // Still waiting for response
         }
     }
+    // check if waiting to retry
     if (!ntp_request_pending && time_us_64() < timeout) {
         return false;
     }
 
-    // Resolve NTP server address
+    // resolve NTP server address
     err_t err = dns_gethostbyname(NTP_SERVER, &ntp_server_addr, ntp_dns_callback, NULL);
     
     if (err == ERR_OK) {
-        // Address already resolved, send NTP request immediately
+        // address already resolved, send NTP request immediately
         return ntp_send_request();
     } else if (err == ERR_INPROGRESS) {
         // DNS resolution in progress, callback will send request
@@ -188,16 +234,23 @@ bool ntp_request_time(void) {
 }
 
 static void ntp_handle_error(void) {
+    // reset the pending flag
     ntp_request_pending = false;
+    // if not the first attempt, and this isn't the startup sequence
     if (sync_attempts > 0 && init_flag) {
+        // update the timeout based on the retry delayt
         timeout = time_us_64() + sync_retry_delay;
+        // double the next retry delay
         sync_retry_delay *= 2;
+        // cap the retry delay
         if (sync_retry_delay > max_retry_delay) {
             sync_retry_delay = max_retry_delay;
         }
     } else {
+        // otherwise no retry delay
         timeout = time_us_64();
     }
+    // increment the attempt counter
     sync_attempts++;
 }
 
@@ -208,16 +261,16 @@ static void ntp_dns_callback(const char* name, const ip_addr_t* addr, void* arg)
         return;
     }
 
-    // Save NTP server address
+    // save NTP server address
     memcpy(&ntp_server_addr, addr, sizeof(ip_addr_t));
     printf("NTP server resolved to %s\n", ipaddr_ntoa(addr));
     
-    // Send NTP request
+    // send NTP request
     ntp_send_request();
 }
 
 static bool ntp_send_request(void) {
-    // Create packet buffer for payload size of NTP request (48 bytes)
+    // create packet buffer for payload size of NTP request (48 bytes)
     struct pbuf* p = pbuf_alloc(PBUF_TRANSPORT, sizeof(ntp_packet_t), PBUF_RAM);
     if (p == NULL) {
         printf("Failed to allocate packet buffer for NTP request!\n");
@@ -225,14 +278,14 @@ static bool ntp_send_request(void) {
         return false;
     }
 
-    // Initialize NTP request packet
+    // allocate memory for the NTP request packet
     memset(p->payload, 0, sizeof(ntp_packet_t));
     ntp_packet_t* ntp_packet = (ntp_packet_t *)p->payload;
     
-    // Set version number to 4 and mode to 3 (client)
+    // set version number to 3 and mode to 3 (client)
     ntp_packet->li_vn_mode = 0x1B; // 00 011 011: LI=0, VN=3, Mode=3 (client)
 
-    // Send the packet
+    // send the packet
     err_t err = udp_sendto(ntp_pcb, p, &ntp_server_addr, NTP_PORT);
     pbuf_free(p);
     
@@ -244,19 +297,17 @@ static bool ntp_send_request(void) {
     
     printf("NTP request sent...\n");
     ntp_request_pending = true;
-    // Sends the second request immediately after the first because of weird networking
+    // sends the first request with a smaller timeout to avoid needless waiting
     if (sync_attempts > 0) {
         timeout = time_us_64() + ntp_timeout_us;
     } else {
-        timeout = time_us_64();
+        timeout = time_us_64() + ntp_init_timeout_us;
     }
     return true;
 }
 
 static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
                               const ip_addr_t* addr, u16_t port) {
-
-    ntp_request_pending = false;
 
     if (p == NULL) {
         printf("Received NULL NTP response!\n");
@@ -265,7 +316,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     }
     printf("Received NTP response, processing...\n");
     
-    // Check packet size
+    // check packet size
     if (p->len != sizeof(ntp_packet_t)) {
         printf("NTP of incorrect size: %d bytes\n", p->len);
         pbuf_free(p);
@@ -274,16 +325,16 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     }
     printf("Packet size OK: %d bytes\n", p->len);
     
-    // Extract NTP packet from buffer
+    // extract NTP packet from buffer
     ntp_packet_t* ntp_packet = (ntp_packet_t *)p->payload;
     
-    // Swap the byte order
+    // swap the byte order
     uint32_t tx_seconds = ntohl(ntp_packet->tx_ts_sec);
 
-    // Adjust for NTP epoch (1900) to Unix epoch (1970)
+    // adjust from NTP epoch (1900) to Unix epoch (1970)
     uint32_t unix_seconds = tx_seconds - timestamp_delta;
     
-    // Convert to datetime structure
+    // convert from unixtime to RTC datetime structure
     time_t epoch = (time_t)unix_seconds;
     datetime_t t;
     time_to_datetime(epoch, &t);
@@ -294,14 +345,17 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
         ntp_handle_error();
         return;
     }
+    // sets the sync flag and timeout
     is_synchronized = true;
     sync_timeout = time_us_64() + sync_timeout_us;
+    // resets the attempts and retry delay for next sync routing
     sync_attempts = 0;
     sync_retry_delay = base_retry_delay;
     
     printf("RTC synchronized with NTP!\n");
     printf("UTC: %s\n", get_timestamp());
     
+    // frees memory allocated to package buffer
     pbuf_free(p);
     
 }

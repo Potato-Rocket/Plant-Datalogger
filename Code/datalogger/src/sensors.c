@@ -5,20 +5,24 @@
 #define LED_PIN 22
 #define DHT_PIN 4
 
+// to store temperature and humidity readings
 typedef struct {
     float humidity;
     float temp_celsius;
 } dht_reading_t;
 
-static const uint64_t update_delay_us = 1000000;  // 1sec
+static const uint64_t update_delay_us = 1000000;  // 1min
 static uint64_t timeout = 0;
 
 static bool read_dht(dht_reading_t *result);
 
+// stores the last recorded measurement
+// TODO: Make only update when a measurement is logging
 static dht_reading_t prev_dht = {
-    .humidity = 0.0,
-    .temp_celsius = 0.0
+    .humidity = -1.0f,
+    .temp_celsius = -1.0f
 };
+// stores the most recent reading, even if faulty
 static dht_reading_t current_dht;
 
 void init_sensors(void) {
@@ -42,15 +46,22 @@ bool should_update_sensors(void) {
 }
 
 bool update_sensors(void) {
+    // update previous reading
     prev_dht.humidity = current_dht.humidity;
     prev_dht.temp_celsius = current_dht.temp_celsius;
+
+    // read sensors and track whether successful
     bool success = read_dht(&current_dht);
 
+    // update timeout after sensor reading
     timeout = time_us_64() + update_delay_us;
     return success;
 }
 
+// TODO: Add a function to determine whether a new measurement is called for
+
 void print_readings(void) {
+    // formats most recent measurement
     printf("Temperature: %.0f°C  Humidity: %.0f%%\n",
         current_dht.temp_celsius, current_dht.humidity);
 }
@@ -58,16 +69,16 @@ void print_readings(void) {
 // TODO: Set up, calibrate soil moisture sensor
 
 static bool read_dht(dht_reading_t *result) {
-    // Initialize result to invalid values
+    // initialize result to invalid values
     result->humidity = -1.0f;
     result->temp_celsius = -1.0f;
     
-    // Buffer for the 5 bytes (40 bits) of data
+    // buffer for the 5 bytes (40 bits) of data
     uint8_t data[5] = {0};
 
-    // Prevent any possible interrupts to protect timing
+    // prevent any possible interrupts to protect timing
     
-    // Start by switching to output and pulling pin low
+    // start by switching to output and pulling pin low
     gpio_set_dir(DHT_PIN, GPIO_OUT);
     gpio_put(DHT_PIN, 0);
 
@@ -77,7 +88,7 @@ static bool read_dht(dht_reading_t *result) {
         tight_loop_contents();
     }
 
-    // Switch to input, external pull-up will bring voltage up
+    // switch to input, external pull-up will bring voltage up
     gpio_set_dir(DHT_PIN, GPIO_IN);
     
     // MCU waits for DHT response (20-40us)
@@ -107,9 +118,9 @@ static bool read_dht(dht_reading_t *result) {
         }
     }
     
-    // Start reading the 40 bits (5 bytes) of data
+    // start reading the 40 bits (5 bytes) of data
     for (int i = 0; i < 40; i++) {
-        // Each bit starts with a 50us low signal
+        // each bit starts with a 50us low signal
         timeout = time_us_64() + 70;
         while (gpio_get(DHT_PIN) == 0) {
             if (time_us_64() > timeout) {
@@ -118,7 +129,7 @@ static bool read_dht(dht_reading_t *result) {
             }
         }
         
-        // Length of high signal determines bit value (26-28us for '0', 70us for '1')
+        // length of high signal determines bit value (26-28us for '0', 70us for '1')
         uint64_t high_start = time_us_64();
         timeout = high_start + 100;
         
@@ -131,24 +142,24 @@ static bool read_dht(dht_reading_t *result) {
         
         uint64_t high_duration = time_us_64() - high_start;
         
-        // Determine bit value based on high signal duration
+        // determine bit value based on high signal duration
         if (high_duration > 40) {  // Threshold between 0 and 1
             data[i / 8] |= (1 << (7 - (i % 8)));  // Set bit
         }
     }
     
-    // Verify checksum
+    // verify checksum
     uint8_t checksum = data[0] + data[1] + data[2] + data[3];
     if (checksum != data[4]) {
         printf("Checksum failed: calculated 0x%02x, received 0x%02x\n", checksum, data[4]);
         return false;
     }
     
-    // For DHT11, the decimal parts are usually 0, but we'll include them anyway
+    // for DHT11, the decimal parts are usually 0, but we'll include them anyway
     result->humidity = (float)data[0];
     result->temp_celsius = (float)(data[2] & 0x7F);
     
-    // Check for negative temperature (MSB of data[2])
+    // check for negative temperature (MSB of data[2])
     if (data[2] & 0x80) {
         result->temp_celsius = -result->temp_celsius;
     }

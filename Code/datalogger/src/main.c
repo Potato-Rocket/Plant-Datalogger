@@ -7,15 +7,20 @@
 #include "sensors.h"
 // TODO: Add module for OLED display
 // TODO: Add module for SD card reader
+// TODO: Add module to manage EEPROM caching
+// TODO: Add module to manage error indicator
+// TODO: Add module to manage combined serial and logging
 
 static const int32_t stdio_init_timeout_us = 5000000;  // 5sec
 
 int main() {
-    // wait up to ten seconds for the serial port to open
+    // wait up to five seconds for the serial port to open
     stdio_init_all();
-    if (uart_is_readable_within_us(uart0, stdio_init_timeout_us)) {
-        printf("Serial connection success!\n");
+    uint64_t timeout = time_us_64() + stdio_init_timeout_us;
+    while (time_us_64() < timeout) {
+        tight_loop_contents();
     }
+    printf("Initializing startup...\n");
 
     // try to connect to WiFi
     if (!wifi_init()) {
@@ -27,6 +32,7 @@ int main() {
         return -1;
     }
 
+    // try to setup NTP
     if (!ntp_init()) {
         return -1;
     }
@@ -35,21 +41,20 @@ int main() {
     init_sensors();
 
     while (true) {
+        // checks once every ten seconds, blocking if reconnecting
         if (should_check_wifi()) wifi_check_reconnect();
 
-        if (wifi_connected() && !rtc_synchronized()) {
-            ntp_request_time();
-        }
+        // ntp needs wifi, if not synchronized update the ntp routine
+        if (wifi_connected() && !rtc_synchronized()) ntp_request_time();
 
+        // reads sensors once per minute
         if (should_update_sensors()) {
-            if (rtc_synchronized()) {
-                printf("\nLocal time: %s\n", get_pretty_datetime());
-            } else {
-                printf("Datetime not synchronized!\n");
-            }
-            if (update_sensors()) {
-                print_readings();
-            }
+            // assume the rtc is more or less fine after init
+            printf("\nLocal time: %s\n", get_pretty_datetime());
+
+            // update the sensors, print readings only if successful
+            if (update_sensors()) print_readings();
+            
         }
     }
 

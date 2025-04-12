@@ -9,13 +9,20 @@
 #define SSID "WPI-PSK"
 #define PASS "photosynthesize"
 
+// flag for whether the wifi was connected when last checked
 static bool is_connected = false;
 
+// timeout for library wifi functions
 static const uint32_t init_timeout_ms = 10000;  // 10sec
 
+// baseline wait between reconnection attempts
 static const uint32_t base_retry_delay = 10000000;  // 10sec
+// maximum wait between reconnection attempts
 static const uint32_t max_retry_delay = 300000000;  // 5min
+
+// dynamic wait between reconnection attempts 
 static uint32_t retry_delay_us = base_retry_delay;
+// tracks when a new wifi check can happen
 static uint64_t timeout = 0;
 
 bool wifi_init(void) {
@@ -37,6 +44,7 @@ bool wifi_init(void) {
     }
     printf("Wifi connection success!\n");
 
+    // set flag and recheck timeout
     timeout = time_us_64() + retry_delay_us;
     is_connected = true;
     return true;
@@ -48,7 +56,9 @@ bool should_check_wifi(void) {
 
 void wifi_check_reconnect(void) {
 
+    // check whether the wifi connection is up
     if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP) {
+        // if up, reset delay, timout, flag
         retry_delay_us = base_retry_delay;
         timeout = time_us_64() + retry_delay_us;
         is_connected = true;
@@ -56,17 +66,22 @@ void wifi_check_reconnect(void) {
     }
     printf("WiFi disconnected! Attempting reconnection...");
 
+    // otherwise, attempt to reconnect
     if (cyw43_arch_wifi_connect_timeout_ms(SSID, PASS,
         CYW43_AUTH_WPA2_AES_PSK, init_timeout_ms) != 0) {
         printf("Wifi reconnection failed!\n");
+        // if failed, double the delay until the next retry
         retry_delay_us *= 2;
+        // cap the maximum retry duration
         if (retry_delay_us > max_retry_delay) {
             retry_delay_us = max_retry_delay;
         }
+        // update the timeout and flag
         timeout = time_us_64() + retry_delay_us;
         is_connected = false;
         return;
     }
+    // if successfully reconnected, reset delay, timeout, flag
     retry_delay_us = base_retry_delay;
     timeout = time_us_64() + retry_delay_us;
     printf("Wifi reconnection success!\n");

@@ -62,4 +62,10 @@ target_link_libraries(datalogger
         pico_cyw43_arch_lwip_threadsafe_background
         )
 
+add_custom_command(TARGET datalogger
+    POST_BUILD
+    COMMAND echo Memory usage report:
+    COMMAND arm-none-eabi-size datalogger.elf
+)
+
 pico_add_extra_outputs(datalogger)
