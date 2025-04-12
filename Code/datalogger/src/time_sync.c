@@ -14,6 +14,7 @@
 // NTP server configuration
 #define NTP_PORT 123
 #define NTP_SERVER "pool.ntp.org"  // NTP pool address
+#define TIME_ZONE_OFFSET -4
 
 // NTP packet structure (48 bytes)
 typedef struct __attribute__((packed)) {
@@ -44,18 +45,17 @@ static const datetime_t t_default = {
     .min   = 0,
     .sec   = 0
 };
-static datetime_t t_current;
 
 // buffer and pointer for storing the datetime string
 static char datetime_buf[256];
-static char* datetime_str = &datetime_buf[0];
+static char timestamp_buf[256];
 
 static const uint32_t rtc_init_timeout_us = 5000000;  // 5sec
 static const uint32_t ntp_timeout_us = 15000000;  // 15sec
 static const uint64_t sync_timeout_us = 60000000;  // 1min
 
-static const uint32_t base_retry_delay = ntp_timeout_us;  // 1min
-static const uint32_t max_retry_delay = 900000000;  // 1min
+static const uint32_t base_retry_delay = ntp_timeout_us;  // 15sec
+static const uint32_t max_retry_delay = 900000000;  // 15min
 
 static uint32_t sync_retry_delay = base_retry_delay;
 static uint8_t sync_attempts = 0;
@@ -100,15 +100,31 @@ bool rtc_safe_init(void) {
     return true;
 }
 
-// TODO: Make return string instead
-// TODO: Pretty-pringing should offset timezone
-void print_datetime(void) {
-    rtc_get_datetime(&t_current);
-    datetime_to_str(datetime_str, sizeof(datetime_buf), &t_current);
-    printf("Current time: %s\n", datetime_str);
+char* get_pretty_datetime(void) {
+    datetime_t t;
+    rtc_get_datetime(&t);
+
+    time_t epoch;
+    datetime_to_time(&t, &epoch);
+    epoch += TIME_ZONE_OFFSET * 3600;
+    struct tm dt = *gmtime(&epoch);
+
+    strftime(datetime_buf, sizeof(datetime_buf),
+             "%A, %B %d, %Y  %H:%M:%S", &dt);
+    return datetime_buf;
 }
 
-// TODO: Add function to return ISO8601 standard timestamp
+char* get_timestamp(void) {
+    datetime_t t;
+    rtc_get_datetime(&t);
+
+    struct tm dt;
+    datetime_to_tm(&t, &dt);
+
+    strftime(timestamp_buf, sizeof(timestamp_buf),
+             "%Y-%m-%dT%H:%M:%SZ", &dt);
+    return timestamp_buf;
+}
 
 bool rtc_synchronized(void) {
     if (is_synchronized && time_us_64() > sync_timeout) {
@@ -121,14 +137,14 @@ bool ntp_init(void) {
     // Create a new UDP control block
     ntp_pcb = udp_new();
     if (ntp_pcb == NULL) {
-        printf("Failed to create UDP PCB for NTP\n");
+        printf("Failed to create UDP PCB for NTP!\n");
         return false;
     }
 
     // Sets up ntp recieved callback
     udp_recv(ntp_pcb, ntp_recv_callback, NULL);
     
-    printf("NTP initialized\n");
+    printf("NTP initialized!\n");
 
     while (!is_synchronized) {
         ntp_request_time();
@@ -142,7 +158,7 @@ bool ntp_request_time(void) {
     if (ntp_request_pending) {
         // Check if previous request timed out
         if (time_us_64() > timeout) {
-            printf("NTP request timed out\n");
+            printf("NTP request timed out!\n");
             ntp_handle_error();
         } else {
             return false; // Still waiting for response
@@ -187,7 +203,7 @@ static void ntp_handle_error(void) {
 
 static void ntp_dns_callback(const char* name, const ip_addr_t* addr, void* arg) {
     if (addr == NULL) {
-        printf("NTP server DNS resolution failed\n");
+        printf("NTP server DNS resolution failed!\n");
         ntp_request_pending = false;
         return;
     }
@@ -204,7 +220,7 @@ static bool ntp_send_request(void) {
     // Create packet buffer for payload size of NTP request (48 bytes)
     struct pbuf* p = pbuf_alloc(PBUF_TRANSPORT, sizeof(ntp_packet_t), PBUF_RAM);
     if (p == NULL) {
-        printf("Failed to allocate packet buffer for NTP request\n");
+        printf("Failed to allocate packet buffer for NTP request!\n");
         ntp_handle_error();
         return false;
     }
@@ -226,7 +242,7 @@ static bool ntp_send_request(void) {
         return false;
     }
     
-    printf("NTP request sent\n");
+    printf("NTP request sent...\n");
     ntp_request_pending = true;
     // Sends the second request immediately after the first because of weird networking
     if (sync_attempts > 0) {
@@ -243,7 +259,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     ntp_request_pending = false;
 
     if (p == NULL) {
-        printf("Received NULL NTP response\n");
+        printf("Received NULL NTP response!\n");
         ntp_handle_error();
         return;
     }
@@ -268,36 +284,23 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     uint32_t unix_seconds = tx_seconds - timestamp_delta;
     
     // Convert to datetime structure
-    time_t unix_time = (time_t)unix_seconds;
-    struct tm *tm = gmtime(&unix_time);
+    time_t epoch = (time_t)unix_seconds;
+    datetime_t t;
+    time_to_datetime(epoch, &t);
     
-    if (tm == NULL) {
-        printf("Failed to convert NTP time (gmtime returned NULL)\n");
-        pbuf_free(p);
+    // Set RTC with synchronized time
+    if (!rtc_set_datetime(&t)) {
+        printf("Error: Invalid datetime!\n");
         ntp_handle_error();
         return;
     }
-    
-    // Create datetime for RTC
-    datetime_t t = {
-        .year  = tm->tm_year + 1900,
-        .month = tm->tm_mon + 1,
-        .day   = tm->tm_mday,
-        .dotw  = tm->tm_wday,
-        .hour  = tm->tm_hour,
-        .min   = tm->tm_min,
-        .sec   = tm->tm_sec
-    };
-    
-    // Set RTC with synchronized time
-    rtc_set_datetime(&t);
     is_synchronized = true;
     sync_timeout = time_us_64() + sync_timeout_us;
     sync_attempts = 0;
     sync_retry_delay = base_retry_delay;
     
-    printf("RTC synchronized with NTP\n");
-    print_datetime();
+    printf("RTC synchronized with NTP!\n");
+    printf("UTC: %s\n", get_timestamp());
     
     pbuf_free(p);
     

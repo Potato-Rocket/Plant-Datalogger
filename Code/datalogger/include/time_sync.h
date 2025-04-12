@@ -4,7 +4,9 @@
 
 bool rtc_safe_init(void);
 
-void print_datetime(void);
+char* get_pretty_datetime(void);
+
+char* get_timestamp(void);
 
 bool rtc_synchronized(void);
 

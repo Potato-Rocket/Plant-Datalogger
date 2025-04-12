@@ -34,9 +34,6 @@ int main() {
     // initialize sensors
     init_sensors();
 
-    // set up variables for the update loop
-    uint64_t prev_loop = 0;
-
     while (true) {
         if (should_check_wifi()) wifi_check_reconnect();
 
@@ -46,7 +43,7 @@ int main() {
 
         if (should_update_sensors()) {
             if (rtc_synchronized()) {
-                print_datetime();
+                printf("\nLocal time: %s\n", get_pretty_datetime());
             } else {
                 printf("Datetime not synchronized!\n");
             }
