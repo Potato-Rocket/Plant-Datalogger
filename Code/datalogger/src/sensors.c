@@ -2,28 +2,69 @@
 
 #include "sensors.h"
 
+#include "hardware/adc.h"
+
 #define LED_PIN 22
-#define DHT_PIN 4
+#define DHT_PIN 6
+#define SOIL_PIN 26
+#define BUTTON_PIN 1
 
 // to store temperature and humidity readings
 typedef struct {
     float humidity;
     float temp_celsius;
-} dht_reading_t;
+    float soil_moisture;
+} measurement_t;
 
+typedef struct {
+    float slope;
+    float intercept;
+} calibration_t;
+
+// how long to wait between measurements
 static const uint64_t update_delay_us = 1000000;  // 1min
+// how long to wait between measurement retries
+static const uint64_t retry_delay_us = 1000000;  // 1sec
+// tracks when to take the next measurement
 static uint64_t timeout = 0;
+// number of failed measurement attempts
+static uint32_t attempts = 0;
 
-static bool read_dht(dht_reading_t *result);
+// number of soil moisture meaurements to average
+static const uint8_t soil_count = 100;
+// the calibration for the soil sensor
+static calibration_t soil_cal;
 
 // stores the last recorded measurement
 // TODO: Make only update when a measurement is logging
-static dht_reading_t prev_dht = {
+static measurement_t prev_measure = {
     .humidity = -1.0f,
-    .temp_celsius = -1.0f
+    .temp_celsius = -1.0f,
+    .soil_moisture = -1.0f
 };
 // stores the most recent reading, even if faulty
-static dht_reading_t current_dht;
+static measurement_t measure;
+
+static int32_t read_soil(void);
+
+/**
+ * Calibration sequence for the soil moisture sensor. Records an air meaurement,
+ * then a wet measurement, and sets the slope-intercept based on those. Uses
+ * button input to trigger measurements.
+ */
+static void calibrate_soil(void);
+
+/**
+ * Reads from the DHT11. Single bus IO. Sends a start signal, waits for
+ * acknowledgement, then reads 40 bits of sensor data. Ones and zeroes
+ * determined by pulse length. Verifies checksum, then writes data to the
+ * measurement struct.
+ * 
+ * @param result Pointer to the measurement struct
+ * 
+ * @return `true` if successful, `false` otherwise
+ */
+static bool read_dht(measurement_t* result);
 
 void init_sensors(void) {
 
@@ -34,11 +75,21 @@ void init_sensors(void) {
     
     gpio_put(LED_PIN, 1);  // TODO: Make dependent on soil moisture level
 
+    // set up button
+    gpio_init(BUTTON_PIN);
+    gpio_set_dir(BUTTON_PIN, GPIO_IN);
+    gpio_pull_up(BUTTON_PIN);
+
     // set up DHT11
     gpio_init(DHT_PIN);
 
-    timeout = time_us_64() + update_delay_us;
+    // set up soil moisture sensor
+    gpio_init(SOIL_PIN);
+    adc_init();
+    adc_select_input(0);
     
+    calibrate_soil();
+
 }
 
 bool should_update_sensors(void) {
@@ -46,33 +97,72 @@ bool should_update_sensors(void) {
 }
 
 bool update_sensors(void) {
-    // update previous reading
-    prev_dht.humidity = current_dht.humidity;
-    prev_dht.temp_celsius = current_dht.temp_celsius;
-
     // read sensors and track whether successful
-    bool success = read_dht(&current_dht);
+    if (!read_dht(&measure)) {
+        // retry sooner if failed
+        timeout = time_us_64() + retry_delay_us;
+        attempts++;
+        return false;
+    }
+
+    // read soil moisture level
+    uint16_t raw = read_soil();
+    measure.soil_moisture = raw * soil_cal.slope + soil_cal.intercept;
 
     // update timeout after sensor reading
     timeout = time_us_64() + update_delay_us;
-    return success;
+    attempts = 0;
+    return true;
 }
 
 // TODO: Add a function to determine whether a new measurement is called for
 
 void print_readings(void) {
     // formats most recent measurement
-    printf("Temperature: %.0f°C  Humidity: %.0f%%\n",
-        current_dht.temp_celsius, current_dht.humidity);
+    printf("Temperature: %.0f°C  Humidity: %.0f%%  Soil moisture: %.1f%%\n",
+           measure.temp_celsius, measure.humidity, measure.soil_moisture);
 }
 
-// TODO: Set up, calibrate soil moisture sensor
+void calibrate_soil(void) {
+    uint16_t endpoints[2] = {0};
+    printf("Calibrating soil sensor...\n");
+    while (!gpio_get(BUTTON_PIN)) {
+        tight_loop_contents();
+    }
+    printf("Please disconnect soil sensor and press button.\n");
+    while (gpio_get(BUTTON_PIN)) {
+        tight_loop_contents();
+    }
+    endpoints[0] = read_soil();
+    printf("Dry reading: %d\n", endpoints[0]);
+    while (!gpio_get(BUTTON_PIN)) {
+        tight_loop_contents();
+    }
+    printf("Please reconnect soil sensor and place in a cup of water.\n");
+    while (gpio_get(BUTTON_PIN)) {
+        tight_loop_contents();
+    }
+    endpoints[1] = read_soil();
+    printf("Wet reading: %d\n", endpoints[1]);
+    soil_cal.slope = 100.0f / (float)(endpoints[1] - endpoints[0]);
+    soil_cal.intercept = -soil_cal.slope * endpoints[0];
+    printf("Soild sensor calibrated!\n");
+}
 
-static bool read_dht(dht_reading_t *result) {
-    // initialize result to invalid values
-    result->humidity = -1.0f;
-    result->temp_celsius = -1.0f;
-    
+static int32_t read_soil(void) {
+    uint32_t sum = 0;
+
+    // discard first reading to avoid incorrect measurements
+    adc_read();
+
+    for (uint8_t i = 0; i < soil_count; i++) {
+        sleep_us(10);
+        sum += adc_read();
+    }
+    return sum / soil_count;
+}
+
+static bool read_dht(measurement_t* result) {    
     // buffer for the 5 bytes (40 bits) of data
     uint8_t data[5] = {0};
 
@@ -83,10 +173,7 @@ static bool read_dht(dht_reading_t *result) {
     gpio_put(DHT_PIN, 0);
 
     // MCU sends start signal and waits 20ms (min 18ms per datasheet)
-    uint64_t timeout = time_us_64() + 20000;
-    while (time_us_64() < timeout) {
-        tight_loop_contents();
-    }
+    sleep_ms(20);
 
     // switch to input, external pull-up will bring voltage up
     gpio_set_dir(DHT_PIN, GPIO_IN);
@@ -119,7 +206,7 @@ static bool read_dht(dht_reading_t *result) {
     }
     
     // start reading the 40 bits (5 bytes) of data
-    for (int i = 0; i < 40; i++) {
+    for (uint8_t i = 0; i < 40; i++) {
         // each bit starts with a 50us low signal
         timeout = time_us_64() + 70;
         while (gpio_get(DHT_PIN) == 0) {

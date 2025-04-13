@@ -5,21 +5,17 @@
 #include "wifi_mgr.h"
 #include "time_sync.h"
 #include "sensors.h"
+#include "logging.h"
 // TODO: Add module for OLED display
 // TODO: Add module for SD card reader
 // TODO: Add module to manage EEPROM caching
 // TODO: Add module to manage error indicator
 // TODO: Add module to manage combined serial and logging
 
-static const int32_t stdio_init_timeout_us = 5000000;  // 5sec
-
 int main() {
     // wait up to five seconds for the serial port to open
     stdio_init_all();
-    uint64_t timeout = time_us_64() + stdio_init_timeout_us;
-    while (time_us_64() < timeout) {
-        tight_loop_contents();
-    }
+    sleep_ms(5000);
     printf("Initializing startup...\n");
 
     // try to connect to WiFi

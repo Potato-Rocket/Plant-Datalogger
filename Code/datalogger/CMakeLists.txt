@@ -59,6 +59,7 @@ target_include_directories(datalogger PRIVATE
 # Add any user requested libraries
 target_link_libraries(datalogger
         hardware_rtc
+        hardware_adc
         pico_cyw43_arch_lwip_threadsafe_background
         )
 
