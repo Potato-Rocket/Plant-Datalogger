@@ -4,7 +4,7 @@
 
 An extensible datalogging project based on the Raspberry Pi Pico W. Currently implements the DHT11 temperature and humidity sensor, and an analog soil moisture sensor. Syncs the RTC using NTP upon startup and then every 24 hours.
 
-Checks WiFi connection every ten seconds. If disconnected, attempt reconnection. Note that reconnection protocol is blocking. If reconnection fails, the system makes repeated attempts with exponantial backoff. Upon a failed NTP request, the system again makes repeated attempts with exponential backoff, except during initialization. If the RTC or WiFi fails to initialize and connect properly during startup, the program will restart. The first NTP request in each sync event times out very quickly to avoid unecessary wait times resulting from dropped first packages.
+Checks WiFi connection every hour, or before sending an NTP request. If disconnected, attempt reconnection. Note that reconnection protocol is blocking. If reconnection fails, the system makes repeated attempts with exponantial backoff. Upon a failed NTP request, the system again makes repeated attempts with exponential backoff, except during initialization. If the RTC or WiFi fails to initialize and connect properly during startup, the program will restart. The first NTP request in each sync event times out very quickly to avoid unecessary wait times resulting from dropped first packages.
 
 Takes sensor readings every minute. If the DHT11 reading is unsuccessful, it will make up to ten repeated attempts before waiting for the next reading. Only records soil moisture upon successful DHT11 reading. Each soil moisture reading is averaged from 100 readings.
 
@@ -14,9 +14,10 @@ The red indicator LED varies behavior depending on the state of the dataloggers 
 
 ## To Do
 
-- Cache calibration of soil sensor in EEPROM.
+- Cache calibration and other system parameters in EEPROM.
 - Implement data logging to SD card.
 - Tie behavior of green LED to SD card status.
-- Cache data measurements to EEPROM if SD card unavailable, then flush to SD card when it becomes accessible.
+- Implement module to store messages in log, and only print if serial available.
+- Cache data measurement and logs in EEPROM if SD card unavailable, then flush to SD card when it becomes accessible.
 - Implement UI on mini OLED.
 - Begin planning and designing PCB with female headers for Pico, OLED, SD reader, and soil moisture amplifier.

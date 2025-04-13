@@ -11,7 +11,8 @@
 // TODO: Add module for OLED display
 // TODO: Add module for SD card reader
 // TODO: Add module to manage EEPROM caching
-// TODO: Add module to manage error indicator
+// TODO: Add module to manage configuration
+// TODO: Add module to manage logging messages
 // TODO: Add module to manage combined serial and logging
 
 int main() {
