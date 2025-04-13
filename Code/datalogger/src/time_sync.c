@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "time_sync.h"
+#include "error_mgr.h"
 
 #include "pico/util/datetime.h"
 #include "hardware/rtc.h"
@@ -193,6 +194,7 @@ bool ntp_init(void) {
         ntp_request_time();
     }
     init_flag = true;
+    set_error(WARNING_INTIALIZING, false);
 
     return true;
 }
@@ -244,6 +246,7 @@ static void ntp_handle_error(void) {
         // cap the retry delay
         if (sync_retry_delay > max_retry_delay) {
             sync_retry_delay = max_retry_delay;
+            set_error(ERROR_NTP_SYNC_FAILED, true);
         }
     } else {
         // otherwise no retry delay
@@ -350,6 +353,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     // resets the attempts and retry delay for next sync routing
     sync_attempts = 0;
     sync_retry_delay = base_retry_delay;
+    set_error(ERROR_NTP_SYNC_FAILED, false);
     
     printf("RTC synchronized with NTP!\n");
     printf("UTC: %s\n", get_timestamp());

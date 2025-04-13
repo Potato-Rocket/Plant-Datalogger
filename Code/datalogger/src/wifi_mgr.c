@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "wifi_mgr.h"
+#include "error_mgr.h"
 
 #include "pico/cyw43_arch.h"
 
@@ -61,6 +62,7 @@ void wifi_check_reconnect(void) {
         retry_delay_us = base_retry_delay;
         timeout = time_us_64() + retry_delay_us;
         is_connected = true;
+        set_error(ERROR_WIFI_DISCONNECTED, false);
         return;
     }
     printf("WiFi disconnected! Attempting reconnection...");
@@ -74,6 +76,7 @@ void wifi_check_reconnect(void) {
         // cap the maximum retry duration
         if (retry_delay_us > max_retry_delay) {
             retry_delay_us = max_retry_delay;
+            set_error(ERROR_WIFI_DISCONNECTED, true);
         }
         // update the timeout and flag
         timeout = time_us_64() + retry_delay_us;
@@ -86,6 +89,7 @@ void wifi_check_reconnect(void) {
     printf("Wifi reconnection success!\n");
 
     is_connected = true;
+    set_error(ERROR_WIFI_DISCONNECTED, false);
     return;
 }
 

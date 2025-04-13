@@ -2,7 +2,7 @@
 
 #include "pico/stdlib.h"
 
-void init_io(void);
+void init_button(void);
 
 bool check_press(void);
 

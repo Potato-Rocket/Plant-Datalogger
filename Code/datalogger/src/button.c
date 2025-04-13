@@ -1,6 +1,5 @@
-#include "simple_io.h"
+#include "button.h"
 
-#define LED_PIN 22
 #define BUTTON_PIN 1
 
 static const uint32_t button_debounce_us = 20000;  // 20ms
@@ -16,21 +15,14 @@ static bool registered = false;
 
 static void button_cb(uint __unused, uint32_t events);
 
-void init_io(void) {
-
-    // set up indicator light
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_set_drive_strength(LED_PIN, GPIO_DRIVE_STRENGTH_12MA);
-
+void init_button(void) {
     // set up button
     gpio_init(BUTTON_PIN);
     gpio_set_dir(BUTTON_PIN, GPIO_IN);
     gpio_pull_up(BUTTON_PIN);
 
     gpio_set_irq_enabled_with_callback(BUTTON_PIN,
-                                       GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
-                                       true, &button_cb);
+        GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &button_cb);
 
 }
 

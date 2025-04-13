@@ -6,7 +6,8 @@
 #include "time_sync.h"
 #include "sensors.h"
 #include "logging.h"
-#include "simple_io.h"
+#include "button.h"
+#include "error_mgr.h"
 // TODO: Add module for OLED display
 // TODO: Add module for SD card reader
 // TODO: Add module to manage EEPROM caching
@@ -18,6 +19,9 @@ int main() {
     stdio_init_all();
     sleep_ms(5000);
     printf("Initializing startup...\n");
+
+    // initialize buttons and LEDs
+    init_errors();
 
     // try to connect to WiFi
     if (!wifi_init()) {
@@ -33,11 +37,9 @@ int main() {
     if (!ntp_init()) {
         return -1;
     }
-
-    // initialize buttons and LEDs
-    init_io();
-
+    
     // initialize sensors
+    init_button();
     init_sensors();
 
     while (true) {

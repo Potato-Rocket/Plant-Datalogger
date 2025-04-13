@@ -1,7 +1,8 @@
 #include <stdio.h>
 
 #include "sensors.h"
-#include "simple_io.h"
+#include "button.h"
+#include "error_mgr.h"
 
 #include "hardware/adc.h"
 
@@ -21,7 +22,7 @@ typedef struct {
 } calibration_t;
 
 // how long to wait between measurements
-static const uint64_t update_delay_us = 1000000;  // 1min
+static const uint64_t update_delay_us = 60000000;  // 1min
 // how long to wait between measurement retries
 static const uint64_t retry_delay_us = 1000000;  // 1sec
 // tracks when to take the next measurement
@@ -33,6 +34,8 @@ static uint32_t attempts = 0;
 static const uint8_t soil_count = 100;
 // the calibration for the soil sensor
 static calibration_t soil_cal;
+// the threshold for soil to count as dry
+static const float soil_threshold = 20.0;
 
 // stores the last recorded measurement
 // TODO: Make only update when a measurement is logging
@@ -85,14 +88,28 @@ bool update_sensors(void) {
     // read sensors and track whether successful
     if (!read_dht(&measure)) {
         // retry sooner if failed
-        timeout = time_us_64() + retry_delay_us;
         attempts++;
+        if (attempts == 10) {
+            set_error(ERROR_DHT11_READ_FAILED, true);
+            timeout = time_us_64() + update_delay_us;
+            attempts = 0;
+            return false;
+        }
+        timeout = time_us_64() + retry_delay_us;
         return false;
     }
+    set_error(ERROR_DHT11_READ_FAILED, false);
 
     // read soil moisture level
     uint16_t raw = read_soil();
-    measure.soil_moisture = raw * soil_cal.slope + soil_cal.intercept;
+    float value = raw * soil_cal.slope + soil_cal.intercept;
+    if (value > 100.0) {
+        value = 100.0;
+    } else if (value < 0.0) {
+        value = 0.0;
+    }
+    set_error(NOTIF_SENSOR_THRESHOLD, value < soil_threshold);
+    measure.soil_moisture = value;
 
     // update timeout after sensor reading
     timeout = time_us_64() + update_delay_us;
@@ -109,6 +126,7 @@ void print_readings(void) {
 }
 
 void calibrate_soil(void) {
+    set_error(WARNING_RECALIBRATING, true);
     uint16_t endpoints[2] = {0};
 
     printf("Calibrating soil sensor...\n");
@@ -127,6 +145,7 @@ void calibrate_soil(void) {
     soil_cal.slope = 100.0f / (float)(endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
     printf("Soil sensor calibrated!\n");
+    set_error(WARNING_RECALIBRATING, false);
 }
 
 static int32_t read_soil(void) {
