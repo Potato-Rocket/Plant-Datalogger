@@ -7,8 +7,8 @@
 
 #include "hardware/adc.h"
 
-#define DHT_PIN 6
-#define SOIL_PIN 26
+#define DHT_PIN 6u
+#define SOIL_PIN 26u
 
 // to store temperature and humidity readings
 typedef struct {
@@ -24,25 +24,25 @@ typedef struct {
 } calibration_t;
 
 // how long to wait between measurements
-static const uint64_t update_delay_us = 60000000;  // 1min
+static const uint32_t update_delay_us = 60000000ul;  // 1min
 // how long to wait between measurement retries
-static const uint64_t retry_delay_us = 1000000;  // 1sec
+static const uint32_t retry_delay_us = 1000000ul;  // 1sec
 // tracks when to take the next measurement
 static uint64_t timeout = 0;
 // number of failed measurement attempts
 static uint32_t attempts = 0;
 
 // number of soil moisture meaurements to average
-static const uint8_t soil_count = 100;
+static const uint8_t soil_count = 100u;
 // minumum difference between endpoints
-static const float min_cal_diff = 100.0;
+static const float min_cal_diff = 100.0f;
 // the calibration for the soil sensor
 static calibration_t soil_cal = {
-    .slope = -1.0f / (1 << 12),
-    .intercept = (1 << 12) - 1,
+    .slope = -1.0f / (1u << 12u),
+    .intercept = (1u << 12u) - 1u,
 };
 // the threshold for soil to count as dry
-static const float soil_threshold = 10.0;
+static const float soil_threshold = 10.0f;
 
 // stores the last recorded measurement
 // TODO: Make only update when a measurement is logging
@@ -151,10 +151,10 @@ bool update_sensors(void) {
 
     // read soil moisture level
     float value = _read_soil() * soil_cal.slope + soil_cal.intercept;
-    if (value > 100.0) {
-        value = 100.0;
-    } else if (value < 0.0) {
-        value = 0.0;
+    if (value > 100.0f) {
+        value = 100.0f;
+    } else if (value < 0.0f) {
+        value = 0.0f;
     }
     set_error(NOTIF_SENSOR_THRESHOLD, value < soil_threshold);
     measure.soil_moisture = value;
@@ -202,7 +202,7 @@ static bool _read_dht(measurement_t* result) {
     gpio_set_dir(DHT_PIN, GPIO_IN);
     
     // MCU waits for DHT response (20-40us)
-    timeout = time_us_64() + 50;
+    timeout = time_us_64() + 50u;
     while (gpio_get(DHT_PIN) == 1) {
         if (time_us_64() > timeout) {
             printf("DHT failed to respond to start signal\n");
@@ -211,7 +211,7 @@ static bool _read_dht(measurement_t* result) {
     }
     
     // DHT pulled low (80us), now waiting for it to pull high
-    timeout = time_us_64() + 100;
+    timeout = time_us_64() + 100u;
     while (gpio_get(DHT_PIN) == 0) {
         if (time_us_64() > timeout) {
             printf("DHT failed to complete low response signal\n");
@@ -220,7 +220,7 @@ static bool _read_dht(measurement_t* result) {
     }
     
     // DHT pulled high (80us), now waiting for it to pull low again
-    timeout = time_us_64() + 100;
+    timeout = time_us_64() + 100u;
     while (gpio_get(DHT_PIN) == 1) {
         if (time_us_64() > timeout) {
             printf("DHT failed to complete high response signal\n");
@@ -229,9 +229,9 @@ static bool _read_dht(measurement_t* result) {
     }
     
     // start reading the 40 bits (5 bytes) of data
-    for (uint8_t i = 0; i < 40; i++) {
+    for (uint8_t i = 0; i < 40u; i++) {
         // each bit starts with a 50us low signal
-        timeout = time_us_64() + 70;
+        timeout = time_us_64() + 70u;
         while (gpio_get(DHT_PIN) == 0) {
             if (time_us_64() > timeout) {
                 printf("Timeout waiting for bit %d start (low)\n", i);
@@ -241,7 +241,7 @@ static bool _read_dht(measurement_t* result) {
         
         // length of high signal determines bit value (26-28us for '0', 70us for '1')
         uint64_t high_start = time_us_64();
-        timeout = high_start + 100;
+        timeout = high_start + 100u;
         
         while (gpio_get(DHT_PIN) == 1) {
             if (time_us_64() > timeout) {
@@ -253,7 +253,7 @@ static bool _read_dht(measurement_t* result) {
         uint64_t high_duration = time_us_64() - high_start;
         
         // determine bit value based on high signal duration
-        data[i / 8] |= (1 << (7 - (i % 8)));
+        data[i / 8u] |= (1u << (7u - (i % 8u)));
     }
     
     // verify checksum

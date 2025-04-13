@@ -62,6 +62,8 @@ int main() {
             if (update_sensors()) print_readings();
             
         }
+
+        sleep_ms(10);
     }
 
 }

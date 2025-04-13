@@ -2,7 +2,7 @@
 
 #include "button.h"
 
-#define BUTTON_PIN 1
+#define BUTTON_PIN 1u
 
 // debouncing time constand
 static const uint32_t button_debounce_us = 20000;   // 20ms

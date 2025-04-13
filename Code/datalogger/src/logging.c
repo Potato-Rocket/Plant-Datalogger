@@ -2,4 +2,4 @@
 
 #include "logging.h"
 
-#define LED_PIN 7
+#define LED_PIN 7u

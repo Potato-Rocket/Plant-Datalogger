@@ -13,12 +13,12 @@
 static bool is_connected = false;
 
 // timeout for library wifi functions
-static const uint32_t init_timeout_ms = 10000;  // 10sec
+static const uint32_t init_timeout_ms = 10000ul;  // 10sec
 
 // baseline wait between reconnection attempts
-static const uint32_t base_retry_delay = 10000000;  // 10sec
+static const uint32_t base_retry_delay = 3600000000ul;  // 1hr
 // maximum wait between reconnection attempts
-static const uint32_t max_retry_delay = 300000000;  // 5min
+static const uint32_t max_retry_delay = 300000000ul;  // 5min
 
 // dynamic wait between reconnection attempts 
 static uint32_t retry_delay_us = base_retry_delay;

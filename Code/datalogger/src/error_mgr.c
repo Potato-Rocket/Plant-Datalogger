@@ -2,7 +2,7 @@
 
 #include "error_mgr.h"
 
-#define LED_PIN 22
+#define LED_PIN 22u
 
 /**
  * Enumeratioon to describe the state of the indicator light

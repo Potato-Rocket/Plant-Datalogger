@@ -13,9 +13,9 @@
 #include "lwip/dns.h"
 
 // NTP server configuration
-#define NTP_PORT 123
+#define NTP_PORT 123u
 #define NTP_SERVER "pool.ntp.org"
-#define TIME_ZONE_OFFSET -4
+#define TIME_ZONE_OFFSET -4u
 
 // NTP packet structure (48 bytes)
 typedef struct __attribute__((packed)) {
@@ -38,28 +38,28 @@ typedef struct __attribute__((packed)) {
 
 // create and set default date and time
 static const datetime_t t_default = {
-    .year  = 2025,
-    .month = 1,
-    .day   = 1,
-    .dotw  = 3,
+    .year  = 2025u,
+    .month = 1u,
+    .day   = 1u,
+    .dotw  = 3u,
     .hour  = 0,
     .min   = 0,
     .sec   = 0
 };
 
 // how long to wait for the RTC to be running
-static const uint32_t rtc_init_timeout_us = 5000000;  // 5sec
+static const uint32_t rtc_init_timeout_us = 5000000ul;  // 5sec
 // how long to wait for NTP operations to timeout
-static const uint32_t ntp_timeout_us = 15000000;  // 15sec
+static const uint32_t ntp_timeout_us = 15000000ul;  // 15sec
 // how long to wait for the first NTP request sent to timeout
-static const uint32_t ntp_init_timeout_us = 1000000;  // 1sec
+static const uint32_t ntp_init_timeout_us = 1000000ul;  // 1sec
 // how long to wait before resyncing is needed
-static const uint64_t sync_timeout_us = 86400000000;  // 24hr
+static const uint64_t sync_timeout_us = 86400000000ull;  // 24hr
 
 // baseline wait between failed NTP requests
 static const uint32_t base_retry_delay = ntp_timeout_us;  // 15sec
 // maximum wait between failed NTP requests
-static const uint32_t max_retry_delay = 900000000;  // 15min
+static const uint32_t max_retry_delay = 900000000ul;  // 15min
 
 // dynamic wait between failed NTP requests
 static uint32_t sync_retry_delay = base_retry_delay;
@@ -76,7 +76,7 @@ static bool is_synchronized = false;
 static bool init_flag = false;
 
 // offset between NTP epoch (1900) and the Unix epoch (1970)
-static const uint64_t epoch_conversion = 2208988800;  // 70yr
+static const uint64_t epoch_conversion = 2208988800ull;  // 70yr
 
 // UDP control block
 static struct udp_pcb *ntp_pcb = NULL;
@@ -208,11 +208,6 @@ bool ntp_init(void) {
 }
 
 bool ntp_request_time(void) {
-    // Check WiFi connectivity first
-    if (!wifi_connected()) {
-        printf("NTP request failed: WiFi not connected\n");
-        return false;
-    }
 
     // if a request is already pending
     if (ntp_request_pending) {
@@ -226,6 +221,13 @@ bool ntp_request_time(void) {
     }
     // check if waiting to retry
     if (!ntp_request_pending && time_us_64() < timeout) {
+        return false;
+    }
+    
+    // Check WiFi connectivity first
+    wifi_check_reconnect();
+    if (!wifi_connected()) {
+        printf("NTP request failed: WiFi not connected\n");
         return false;
     }
 
