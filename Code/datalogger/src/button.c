@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "button.h"
 
 #define BUTTON_PIN 1
@@ -14,12 +16,17 @@ static uint64_t debounce = 0;
 // when the current long press started
 static uint64_t press_start = 0;
 
-// short press flag
-static volatile bool short_press = false;
-// long press flag
-static volatile bool long_press = false;
-// whether the short press was registered
-static bool registered = false;
+/**
+ * Enumeration to keep track of what event the button should report
+ */
+typedef enum {
+    BUTTON_IDLE,         // no events to report
+    BUTTON_PRESSED,      // button pressed but not released or reported
+    BUTTON_LONG_PRESSED, // button long pressed but not reported
+} ButtonState;
+
+// the current button state, i.e. any events to report
+static volatile ButtonState button_state = BUTTON_IDLE;
 
 /**
  * Button callback, whenever the button's state changes. Debounces, then if it
@@ -41,18 +48,22 @@ void init_button(void) {
 }
 
 bool check_press(void) {
-    bool result = short_press;
-    // update press status and register output
-    short_press = false;
-    registered = true;
+    // is there a short press to report?
+    bool result = button_state == BUTTON_PRESSED;
+    // reset the button state
+    if (result) {
+        button_state = BUTTON_IDLE;
+    }
     return result;
 }
 
 bool check_long_press(void) {
-    bool result = long_press && !registered;
-    // reset flags
-    long_press = false;
-    registered = false;
+    // is there a long press to report?
+    bool result = button_state == BUTTON_LONG_PRESSED;
+    // reset the button state
+    if (result) {
+        button_state = BUTTON_IDLE;
+    }
     return result;
 }
 
@@ -66,16 +77,31 @@ static void button_cb(uint __unused, uint32_t events) {
 
     // if the button has been pressed
     if (events & GPIO_IRQ_EDGE_FALL) {
-        short_press = true;
-        long_press = false;
+        // update the date and press time
+        button_state = BUTTON_PRESSED;
         press_start = current_time;
     }
+
     // if the button has been released
     if (events & GPIO_IRQ_EDGE_RISE) {
-        short_press = false;
-        long_press = (
-            current_time > press_start + long_press_min_us &&
-            current_time < press_start + long_press_max_us
-        );
+
+        // if the short press was not reported
+        if (button_state == BUTTON_PRESSED) {
+            uint64_t time_delta = current_time - press_start;
+
+            // if the press was the correct duration
+            if (time_delta > long_press_min_us &&
+                time_delta < long_press_max_us) {
+                // register a long press
+                button_state = BUTTON_LONG_PRESSED;
+
+            } else {
+                // otherwise return to idle
+                button_state = BUTTON_IDLE;
+            }
+
+        }
+
     }
+
 }

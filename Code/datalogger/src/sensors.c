@@ -134,18 +134,20 @@ void calibrate_soil(void) {
     while (!check_press()) tight_loop_contents();
 
     endpoints[0] = read_soil();
-    printf("Dry reading: %d\n", endpoints[0]);
+    printf("Dry reading: %.2f\n", endpoints[0]);
 
     printf("Please reconnect soil sensor and place in a cup of water.\n");
     while (!check_press()) tight_loop_contents();
 
     endpoints[1] = read_soil();
-    printf("Wet reading: %d\n", endpoints[1]);
+    printf("Wet reading: %.2f\n", endpoints[1]);
 
     soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
     printf("Soil sensor calibrated!\n");
     set_error(WARNING_RECALIBRATING, false);
+    
+    timeout = time_us_64() + update_delay_us;
 }
 
 static float read_soil(void) {
