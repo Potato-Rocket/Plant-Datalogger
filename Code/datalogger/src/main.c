@@ -54,7 +54,9 @@ int main() {
         // reads sensors once per minute
         if (should_update_sensors()) {
             // assume the rtc is more or less fine after init
-            printf("\nLocal time: %s\n", get_pretty_datetime());
+            char buffer[64];
+            get_pretty_datetime(&buffer[0], sizeof(buffer));
+            printf("\nLocal time: %s\n", buffer);
 
             // update the sensors, print readings only if successful
             if (update_sensors()) print_readings();

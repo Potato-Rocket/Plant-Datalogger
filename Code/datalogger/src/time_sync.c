@@ -46,11 +46,6 @@ static const datetime_t t_default = {
     .sec   = 0
 };
 
-// buffer for storing the local datetime string
-static char datetime_buf[256];
-// buffer for storing the UTC timestamp string
-static char timestamp_buf[256];
-
 // how long to wait for the RTC to be running
 static const uint32_t rtc_init_timeout_us = 5000000;  // 5sec
 // how long to wait for NTP operations to timeout
@@ -80,7 +75,7 @@ static bool is_synchronized = false;
 static bool init_flag = false;
 
 // offset between NTP epoch (1900) and the Unix epoch (1970)
-static const uint64_t timestamp_delta = 2208988800;  // 70yr
+static const uint64_t epoch_conversion = 2208988800;  // 70yr
 
 // UDP control block
 static struct udp_pcb *ntp_pcb = NULL;
@@ -135,7 +130,7 @@ bool rtc_safe_init(void) {
     return true;
 }
 
-char* get_pretty_datetime(void) {
+void get_pretty_datetime(char* buffer, size_t buffer_size) {
     // read from the RTC
     datetime_t t;
     rtc_get_datetime(&t);
@@ -149,12 +144,10 @@ char* get_pretty_datetime(void) {
     struct tm dt = *gmtime(&epoch);
 
     // return the pointer to a formatted string
-    strftime(datetime_buf, sizeof(datetime_buf),
-             "%A, %B %d, %Y  %H:%M:%S", &dt);
-    return datetime_buf;
+    strftime(buffer, buffer_size, "%A, %B %d, %Y  %H:%M:%S", &dt);
 }
 
-char* get_timestamp(void) {
+void get_timestamp(char* buffer, size_t buffer_size) {
     // read from the RTC
     datetime_t t;
     rtc_get_datetime(&t);
@@ -164,9 +157,7 @@ char* get_timestamp(void) {
     datetime_to_tm(&t, &dt);
 
     // return the pointer to a formatted string
-    strftime(timestamp_buf, sizeof(timestamp_buf),
-             "%Y-%m-%dT%H:%M:%SZ", &dt);
-    return timestamp_buf;
+    strftime(buffer, buffer_size, "%Y-%m-%dT%H:%M:%SZ", &dt);
 }
 
 bool rtc_synchronized(void) {
@@ -334,7 +325,7 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     uint32_t tx_seconds = ntohl(ntp_packet->tx_ts_sec);
 
     // adjust from NTP epoch (1900) to Unix epoch (1970)
-    uint32_t unix_seconds = tx_seconds - timestamp_delta;
+    uint32_t unix_seconds = tx_seconds - epoch_conversion;
     
     // convert from unixtime to RTC datetime structure
     time_t epoch = (time_t)unix_seconds;
@@ -356,7 +347,10 @@ static void ntp_recv_callback(void* arg, struct udp_pcb* pcb, struct pbuf* p,
     set_error(ERROR_NTP_SYNC_FAILED, false);
     
     printf("RTC synchronized with NTP!\n");
-    printf("UTC: %s\n", get_timestamp());
+
+    char buffer[32];
+    get_timestamp(&buffer[0], sizeof(buffer));
+    printf("UTC: %s\n", buffer);
     
     // frees memory allocated to package buffer
     pbuf_free(p);

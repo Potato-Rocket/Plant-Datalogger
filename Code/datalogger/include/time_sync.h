@@ -12,16 +12,18 @@ bool rtc_safe_init(void);
 /**
  * Formats the current local time in a readable, printable format.
  * 
- * @return The pointer to a string buffer
+ * @param buffer Pointer to a string buffer
+ * @param buffer_size Size of the string buffer
  */
-char* get_pretty_datetime(void);
+void get_pretty_datetime(char* buffer, size_t buffer_size);
 
 /**
  * Formats the current UTC according to ISO8601.
  * 
- * @return The pointer to a string buffer
+ * @param buffer Pointer to a string buffer
+ * @param buffer_size Size of the string buffer
  */
-char* get_timestamp(void);
+void get_timestamp(char* buffer, size_t buffer_size);
 
 /**
  * Whether the rtc has been synchronized within the defined time period.
