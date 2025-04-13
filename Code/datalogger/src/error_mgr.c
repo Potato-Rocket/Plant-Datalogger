@@ -15,7 +15,7 @@ typedef enum {
 } LedState;
 
 // the current error code mask
-static uint8_t error_state;
+static uint8_t error_state = ERROR_NONE;
 // whether was last turned on or turned off (for toggling)
 static bool led_on = false;
 // the current state of the LED

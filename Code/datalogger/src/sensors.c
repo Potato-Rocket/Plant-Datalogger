@@ -37,7 +37,10 @@ static const uint8_t soil_count = 100;
 // minumum difference between endpoints
 static const float min_cal_diff = 100.0;
 // the calibration for the soil sensor
-static calibration_t soil_cal;
+static calibration_t soil_cal = {
+    .slope = -1.0f / (1 << 12),
+    .intercept = (1 << 12) - 1,
+};
 // the threshold for soil to count as dry
 static const float soil_threshold = 10.0;
 
@@ -46,7 +49,7 @@ static const float soil_threshold = 10.0;
 static measurement_t prev_measure = {
     .humidity = -1.0f,
     .temp_celsius = -1.0f,
-    .soil_moisture = -1.0f
+    .soil_moisture = -1.0f,
 };
 // stores the most recent reading, even if faulty
 static measurement_t measure;
@@ -86,7 +89,7 @@ void init_sensors(void) {
 
 void calibrate_soil(void) {
     set_error(WARNING_RECALIBRATING, true);
-    float endpoints[2] = {1 << 12, 0};
+    float endpoints[2] = {0};
 
     printf("Calibrating soil sensor...\n");
     bool valid = false;
@@ -177,7 +180,12 @@ static float _read_soil(void) {
     return (float)sum / soil_count;
 }
 
-static bool _read_dht(measurement_t* result) {    
+static bool _read_dht(measurement_t* result) {
+    // validate parameters
+    if (result == NULL) {
+        printf("Error: NULL pointer passed to read_dht\n");
+        return false;
+    } 
     // buffer for the 5 bytes (40 bits) of data
     uint8_t data[5] = {0};
 
@@ -245,9 +253,7 @@ static bool _read_dht(measurement_t* result) {
         uint64_t high_duration = time_us_64() - high_start;
         
         // determine bit value based on high signal duration
-        if (high_duration > 40) {  // Threshold between 0 and 1
-            data[i / 8] |= (1 << (7 - (i % 8)));  // Set bit
-        }
+        data[i / 8] |= (1 << (7 - (i % 8)));
     }
     
     // verify checksum

@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "time_sync.h"
+#include "wifi_mgr.h"
 #include "error_mgr.h"
 
 #include "pico/util/datetime.h"
@@ -131,6 +132,14 @@ bool rtc_safe_init(void) {
 }
 
 void get_pretty_datetime(char* buffer, size_t buffer_size) {
+    // validate parameters
+    if (buffer == NULL || buffer_size < 1) {
+        printf("Error: Invalid buffer provided to get_pretty_datetime\n");
+        return;
+    }
+    // make sure the buffer is null-terminated even if we fail
+    buffer[0] = '\0';
+
     // read from the RTC
     datetime_t t;
     rtc_get_datetime(&t);
@@ -148,6 +157,14 @@ void get_pretty_datetime(char* buffer, size_t buffer_size) {
 }
 
 void get_timestamp(char* buffer, size_t buffer_size) {
+    // validate parameters
+    if (buffer == NULL || buffer_size < 1) {
+        printf("Error: Invalid buffer provided to get_pretty_datetime\n");
+        return;
+    }
+    // make sure the buffer is null-terminated even if we fail
+    buffer[0] = '\0';
+
     // read from the RTC
     datetime_t t;
     rtc_get_datetime(&t);
@@ -191,6 +208,12 @@ bool ntp_init(void) {
 }
 
 bool ntp_request_time(void) {
+    // Check WiFi connectivity first
+    if (!wifi_connected()) {
+        printf("NTP request failed: WiFi not connected\n");
+        return false;
+    }
+
     // if a request is already pending
     if (ntp_request_pending) {
         // check if previous request timed out

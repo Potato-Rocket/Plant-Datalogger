@@ -47,7 +47,7 @@ int main() {
         if (should_check_wifi()) wifi_check_reconnect();
 
         // ntp needs wifi, if not synchronized update the ntp routine
-        if (wifi_connected() && !rtc_synchronized()) ntp_request_time();
+        if (!rtc_synchronized()) ntp_request_time();
 
         if (check_long_press()) calibrate_soil();
 
