@@ -3,18 +3,18 @@
 #define LED_PIN 22
 #define BUTTON_PIN 1
 
-static bool prev_pressed = false;
 static const uint32_t button_debounce_us = 20000;  // 20ms
-static uint64_t debounce = 0;
-
 static const uint32_t long_press_min_us = 3000000; // 3sec
 static const uint32_t long_press_max_us = 10000000; // 10sec
+
+static uint64_t debounce = 0;
 static uint64_t press_start = 0;
-static bool long_pressing = false;
 
-static void rising_cb(uint __unused, uint32_t __unused);
+static volatile bool short_press = false;
+static volatile bool long_press = false;
+static bool registered = false;
 
-static void falling_cb(uint __unused, uint32_t __unused);
+static void button_cb(uint __unused, uint32_t events);
 
 void init_io(void) {
 
@@ -28,57 +28,45 @@ void init_io(void) {
     gpio_set_dir(BUTTON_PIN, GPIO_IN);
     gpio_pull_up(BUTTON_PIN);
 
+    gpio_set_irq_enabled_with_callback(BUTTON_PIN,
+                                       GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
+                                       true, &button_cb);
+
 }
 
 bool check_press(void) {
-    if (time_us_64() < debounce) {
-        return false;
-    }
-
-    bool pressed = !gpio_get(BUTTON_PIN);
-
-    if (pressed != prev_pressed) {
-        debounce = time_us_64() + button_debounce_us;
-    }
-
-    bool rising_edge = pressed && !prev_pressed;
-
-    prev_pressed = pressed;
-    return rising_edge;
+    bool result = short_press;
+    short_press = false;
+    registered = true;
+    return result;
 }
 
 bool check_long_press(void) {
+    bool result = long_press && !registered;
+    long_press = false;
+    registered = false;
+    return result;
+}
+
+static void button_cb(uint __unused, uint32_t events) {
     uint64_t current_time = time_us_64();
     if (current_time < debounce) {
-        return false;
+        return;
     }
-    
-    bool pressed = !gpio_get(BUTTON_PIN);\
+    debounce = current_time + button_debounce_us;
 
-    bool rising_edge = pressed && !prev_pressed;
-    bool falling_edge = !pressed && prev_pressed;
-
-    if (pressed != prev_pressed) {
-        debounce = current_time + button_debounce_us;
-    }
-
-    if (rising_edge) {
+    // if the button has been pressed
+    if (events & GPIO_IRQ_EDGE_FALL) {
+        short_press = true;
+        long_press = false;
         press_start = current_time;
     }
-
-    bool long_press = (falling_edge &&
-        current_time > press_start + long_press_min_us &&
-        current_time < press_start + long_press_max_us);
-    
-    prev_pressed = pressed;
-    return long_press;
+    // if the button has been released
+    if (events & GPIO_IRQ_EDGE_RISE) {
+        short_press = false;
+        long_press = (
+            current_time > press_start + long_press_min_us &&
+            current_time < press_start + long_press_max_us
+        );
+    }
 }
-
-static void rising_cb(uint __unused, uint32_t __unused) {
-
-}
-
-static void rising_cb(uint __unused, uint32_t __unused) {
-    
-}
-
