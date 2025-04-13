@@ -138,7 +138,7 @@ bool update_sensors(void) {
     if (!_read_dht(&measure)) {
         // retry sooner if failed
         attempts++;
-        if (attempts == 10) {
+        if (attempts == 10u) {
             set_error(ERROR_DHT11_READ_FAILED, true);
             timeout = time_us_64() + update_delay_us;
             attempts = 0;

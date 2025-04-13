@@ -11,7 +11,7 @@ typedef enum {
     LED_OFF,      // steady off
     LED_ON,       // steady on
     LED_FLASH,    // toggles at 1Hz
-    LED_FLICKER   // toggles at 10Hz
+    LED_FLICKER,   // toggles at 10Hz
 } LedState;
 
 // the current error code mask

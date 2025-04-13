@@ -5,11 +5,11 @@
 #define BUTTON_PIN 1u
 
 // debouncing time constand
-static const uint32_t button_debounce_us = 20000;   // 20ms
+static const uint32_t button_debounce_us = 20000ul;   // 20ms
 // minimum duration of a long press
-static const uint32_t long_press_min_us = 3000000;  // 3sec
+static const uint32_t long_press_min_us = 3000000ul;  // 3sec
 // maximum duration of a long press, to avoid strange behavior
-static const uint32_t long_press_max_us = 10000000; // 10sec
+static const uint32_t long_press_max_us = 10000000ul; // 10sec
 
 // when the next event can be registered
 static uint64_t debounce = 0;
