@@ -1,13 +1,12 @@
 #include <stdio.h>
 
 #include "sensors.h"
+#include "simple_io.h"
 
 #include "hardware/adc.h"
 
-#define LED_PIN 22
 #define DHT_PIN 6
 #define SOIL_PIN 26
-#define BUTTON_PIN 1
 
 // to store temperature and humidity readings
 typedef struct {
@@ -45,14 +44,12 @@ static measurement_t prev_measure = {
 // stores the most recent reading, even if faulty
 static measurement_t measure;
 
-static int32_t read_soil(void);
-
 /**
- * Calibration sequence for the soil moisture sensor. Records an air meaurement,
- * then a wet measurement, and sets the slope-intercept based on those. Uses
- * button input to trigger measurements.
+ * Records 100 ADC readings and returns the average.
+ * 
+ * @return The average ADC valus
  */
-static void calibrate_soil(void);
+static int32_t read_soil(void);
 
 /**
  * Reads from the DHT11. Single bus IO. Sends a start signal, waits for
@@ -67,18 +64,6 @@ static void calibrate_soil(void);
 static bool read_dht(measurement_t* result);
 
 void init_sensors(void) {
-
-    // set up indicator light
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_set_drive_strength(LED_PIN, GPIO_DRIVE_STRENGTH_12MA);
-    
-    gpio_put(LED_PIN, 1);  // TODO: Make dependent on soil moisture level
-
-    // set up button
-    gpio_init(BUTTON_PIN);
-    gpio_set_dir(BUTTON_PIN, GPIO_IN);
-    gpio_pull_up(BUTTON_PIN);
 
     // set up DHT11
     gpio_init(DHT_PIN);
@@ -125,28 +110,23 @@ void print_readings(void) {
 
 void calibrate_soil(void) {
     uint16_t endpoints[2] = {0};
+
     printf("Calibrating soil sensor...\n");
-    while (!gpio_get(BUTTON_PIN)) {
-        tight_loop_contents();
-    }
     printf("Please disconnect soil sensor and press button.\n");
-    while (gpio_get(BUTTON_PIN)) {
-        tight_loop_contents();
-    }
+    while (!check_press()) tight_loop_contents();
+
     endpoints[0] = read_soil();
     printf("Dry reading: %d\n", endpoints[0]);
-    while (!gpio_get(BUTTON_PIN)) {
-        tight_loop_contents();
-    }
+
     printf("Please reconnect soil sensor and place in a cup of water.\n");
-    while (gpio_get(BUTTON_PIN)) {
-        tight_loop_contents();
-    }
+    while (!check_press()) tight_loop_contents();
+
     endpoints[1] = read_soil();
     printf("Wet reading: %d\n", endpoints[1]);
+
     soil_cal.slope = 100.0f / (float)(endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
-    printf("Soild sensor calibrated!\n");
+    printf("Soil sensor calibrated!\n");
 }
 
 static int32_t read_soil(void) {

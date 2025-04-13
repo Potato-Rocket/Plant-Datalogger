@@ -2,7 +2,6 @@
 
 #include "wifi_mgr.h"
 
-#include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
 
 // MAC address is 28:CD:C1:0E:C6:5B

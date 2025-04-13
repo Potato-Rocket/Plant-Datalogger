@@ -6,6 +6,7 @@
 #include "time_sync.h"
 #include "sensors.h"
 #include "logging.h"
+#include "simple_io.h"
 // TODO: Add module for OLED display
 // TODO: Add module for SD card reader
 // TODO: Add module to manage EEPROM caching
@@ -33,6 +34,9 @@ int main() {
         return -1;
     }
 
+    // initialize buttons and LEDs
+    init_io();
+
     // initialize sensors
     init_sensors();
 
@@ -42,6 +46,8 @@ int main() {
 
         // ntp needs wifi, if not synchronized update the ntp routine
         if (wifi_connected() && !rtc_synchronized()) ntp_request_time();
+
+        if (check_long_press()) calibrate_soil();
 
         // reads sensors once per minute
         if (should_update_sensors()) {
