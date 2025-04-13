@@ -20,8 +20,8 @@ int main() {
     sleep_ms(5000);
     printf("Initializing startup...\n");
 
-    // initialize buttons and LEDs
-    init_errors();
+    // initialize error indicator state machine
+    init_errors(WARNING_INTIALIZING | WARNING_RECALIBRATING);
 
     // try to connect to WiFi
     if (!wifi_init()) {

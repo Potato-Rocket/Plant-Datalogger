@@ -16,6 +16,7 @@ typedef struct {
     float soil_moisture;
 } measurement_t;
 
+// to store soil sensor calibration in slope-intercept form
 typedef struct {
     float slope;
     float intercept;
@@ -35,7 +36,7 @@ static const uint8_t soil_count = 100;
 // the calibration for the soil sensor
 static calibration_t soil_cal;
 // the threshold for soil to count as dry
-static const float soil_threshold = 20.0;
+static const float soil_threshold = 10.0;
 
 // stores the last recorded measurement
 // TODO: Make only update when a measurement is logging
@@ -52,7 +53,7 @@ static measurement_t measure;
  * 
  * @return The average ADC valus
  */
-static int32_t read_soil(void);
+static float read_soil(void);
 
 /**
  * Reads from the DHT11. Single bus IO. Sends a start signal, waits for
@@ -101,8 +102,7 @@ bool update_sensors(void) {
     set_error(ERROR_DHT11_READ_FAILED, false);
 
     // read soil moisture level
-    uint16_t raw = read_soil();
-    float value = raw * soil_cal.slope + soil_cal.intercept;
+    float value = read_soil() * soil_cal.slope + soil_cal.intercept;
     if (value > 100.0) {
         value = 100.0;
     } else if (value < 0.0) {
@@ -127,7 +127,7 @@ void print_readings(void) {
 
 void calibrate_soil(void) {
     set_error(WARNING_RECALIBRATING, true);
-    uint16_t endpoints[2] = {0};
+    float endpoints[2] = {1 << 12, 0};
 
     printf("Calibrating soil sensor...\n");
     printf("Please disconnect soil sensor and press button.\n");
@@ -142,13 +142,13 @@ void calibrate_soil(void) {
     endpoints[1] = read_soil();
     printf("Wet reading: %d\n", endpoints[1]);
 
-    soil_cal.slope = 100.0f / (float)(endpoints[1] - endpoints[0]);
+    soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
     printf("Soil sensor calibrated!\n");
     set_error(WARNING_RECALIBRATING, false);
 }
 
-static int32_t read_soil(void) {
+static float read_soil(void) {
     uint32_t sum = 0;
 
     // discard first reading to avoid incorrect measurements
@@ -158,7 +158,7 @@ static int32_t read_soil(void) {
         sleep_us(10);
         sum += adc_read();
     }
-    return sum / soil_count;
+    return (float)sum / soil_count;
 }
 
 static bool read_dht(measurement_t* result) {    

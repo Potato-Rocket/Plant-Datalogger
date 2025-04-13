@@ -12,14 +12,14 @@ bool rtc_safe_init(void);
 /**
  * Formats the current local time in a readable, printable format.
  * 
- * @return The pointer to a string buffer.
+ * @return The pointer to a string buffer
  */
 char* get_pretty_datetime(void);
 
 /**
  * Formats the current UTC according to ISO8601.
  * 
- * @return The pointer to a string buffer.
+ * @return The pointer to a string buffer
  */
 char* get_timestamp(void);
 
