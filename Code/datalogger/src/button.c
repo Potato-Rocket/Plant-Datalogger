@@ -33,7 +33,7 @@ static volatile ButtonState button_state = BUTTON_IDLE;
  * is a rising edge, registers a short press. If it is a falling edge, registers
  * a long press if the duration is correct, deregisters the short press.
  */
-static void button_cb(uint __unused, uint32_t events);
+static void _button_cb(uint __unused, uint32_t events);
 
 void init_button(void) {
     // set up button
@@ -43,7 +43,7 @@ void init_button(void) {
 
     // set up button callback
     gpio_set_irq_enabled_with_callback(BUTTON_PIN,
-        GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &button_cb);
+        GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &_button_cb);
 
 }
 
@@ -67,7 +67,7 @@ bool check_long_press(void) {
     return result;
 }
 
-static void button_cb(uint __unused, uint32_t events) {
+static void _button_cb(uint __unused, uint32_t events) {
     // do some debouncing
     uint64_t current_time = time_us_64();
     if (current_time < debounce) {

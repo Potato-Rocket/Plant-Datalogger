@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 
 #include "sensors.h"
 #include "button.h"
@@ -33,6 +34,8 @@ static uint32_t attempts = 0;
 
 // number of soil moisture meaurements to average
 static const uint8_t soil_count = 100;
+// minumum difference between endpoints
+static const float min_cal_diff = 100.0;
 // the calibration for the soil sensor
 static calibration_t soil_cal;
 // the threshold for soil to count as dry
@@ -53,7 +56,7 @@ static measurement_t measure;
  * 
  * @return The average ADC valus
  */
-static float read_soil(void);
+static float _read_soil(void);
 
 /**
  * Reads from the DHT11. Single bus IO. Sends a start signal, waits for
@@ -65,7 +68,7 @@ static float read_soil(void);
  * 
  * @return `true` if successful, `false` otherwise
  */
-static bool read_dht(measurement_t* result);
+static bool _read_dht(measurement_t* result);
 
 void init_sensors(void) {
 
@@ -81,13 +84,55 @@ void init_sensors(void) {
 
 }
 
+void calibrate_soil(void) {
+    set_error(WARNING_RECALIBRATING, true);
+    float endpoints[2] = {1 << 12, 0};
+
+    printf("Calibrating soil sensor...\n");
+    bool valid = false;
+    while (!valid) {
+        printf("Please wave soil sensor in air and press button.\n");
+        while (!check_press()) tight_loop_contents();
+
+        endpoints[0] = _read_soil();
+        printf("Dry reading: %.2f\n", endpoints[0]);
+
+        printf("Please reconnect soil sensor and place in a cup of water.\n");
+        while (!check_press()) tight_loop_contents();
+
+        endpoints[1] = _read_soil();
+        printf("Wet reading: %.2f\n", endpoints[1]);
+        
+        if (fabsf(endpoints[1] - endpoints[0]) < min_cal_diff) {
+            printf("Error: Measurements too similar!\n");
+        } else {
+            valid = true;
+        }
+    }
+
+    soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
+    soil_cal.intercept = -soil_cal.slope * endpoints[0];
+    printf("Soil sensor calibrated! Slope: %.5f, Intercept: %.1f\n", 
+           soil_cal.slope, soil_cal.intercept);
+
+    set_error(WARNING_RECALIBRATING, false);
+    
+    timeout = time_us_64() + update_delay_us;
+}
+
+void print_readings(void) {
+    // formats most recent measurement
+    printf("Temperature: %.0f°C, Humidity: %.0f%%, Soil moisture: %.1f%%\n",
+           measure.temp_celsius, measure.humidity, measure.soil_moisture);
+}
+
 bool should_update_sensors(void) {
     return time_us_64() > timeout;
 }
 
 bool update_sensors(void) {
     // read sensors and track whether successful
-    if (!read_dht(&measure)) {
+    if (!_read_dht(&measure)) {
         // retry sooner if failed
         attempts++;
         if (attempts == 10) {
@@ -102,7 +147,7 @@ bool update_sensors(void) {
     set_error(ERROR_DHT11_READ_FAILED, false);
 
     // read soil moisture level
-    float value = read_soil() * soil_cal.slope + soil_cal.intercept;
+    float value = _read_soil() * soil_cal.slope + soil_cal.intercept;
     if (value > 100.0) {
         value = 100.0;
     } else if (value < 0.0) {
@@ -119,38 +164,7 @@ bool update_sensors(void) {
 
 // TODO: Add a function to determine whether a new measurement is called for
 
-void print_readings(void) {
-    // formats most recent measurement
-    printf("Temperature: %.0f°C  Humidity: %.0f%%  Soil moisture: %.1f%%\n",
-           measure.temp_celsius, measure.humidity, measure.soil_moisture);
-}
-
-void calibrate_soil(void) {
-    set_error(WARNING_RECALIBRATING, true);
-    float endpoints[2] = {1 << 12, 0};
-
-    printf("Calibrating soil sensor...\n");
-    printf("Please disconnect soil sensor and press button.\n");
-    while (!check_press()) tight_loop_contents();
-
-    endpoints[0] = read_soil();
-    printf("Dry reading: %.2f\n", endpoints[0]);
-
-    printf("Please reconnect soil sensor and place in a cup of water.\n");
-    while (!check_press()) tight_loop_contents();
-
-    endpoints[1] = read_soil();
-    printf("Wet reading: %.2f\n", endpoints[1]);
-
-    soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
-    soil_cal.intercept = -soil_cal.slope * endpoints[0];
-    printf("Soil sensor calibrated!\n");
-    set_error(WARNING_RECALIBRATING, false);
-    
-    timeout = time_us_64() + update_delay_us;
-}
-
-static float read_soil(void) {
+static float _read_soil(void) {
     uint32_t sum = 0;
 
     // discard first reading to avoid incorrect measurements
@@ -163,7 +177,7 @@ static float read_soil(void) {
     return (float)sum / soil_count;
 }
 
-static bool read_dht(measurement_t* result) {    
+static bool _read_dht(measurement_t* result) {    
     // buffer for the 5 bytes (40 bits) of data
     uint8_t data[5] = {0};
 

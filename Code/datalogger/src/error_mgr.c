@@ -27,32 +27,32 @@ static repeating_timer_t led_timer;
  * Update the LED state based on the current error state. Prioritizes
  * warnings over errors, over notifs, over none.
  */
-static void update_led_state(void);
+static void _update_led_state(void);
 
 /**
  * Safely switches the LED off.
  */
-static void enter_state_off(void);
+static void _enter_state_off(void);
 
 /**
  * Safely switches the LED on.
  */
-static void enter_state_on(void);
+static void _enter_state_on(void);
 
 /**
  * Safely makes the LED enter flashing mode.
  */
-static void enter_state_flash(void);
+static void _enter_state_flash(void);
 
 /**
  * Safely makes the LED enter flickering mode.
  */
-static void enter_state_flicker(void);
+static void _enter_state_flicker(void);
 
 /**
  * Toggle the LED and update it's current state
  */
-static bool led_timer_cb(repeating_timer_t* __unused);
+static bool _led_timer_cb(repeating_timer_t* __unused);
 
 void init_errors(uint8_t code) {
 
@@ -63,7 +63,7 @@ void init_errors(uint8_t code) {
 
     // set the error code and update the LED
     error_state = code;
-    update_led_state();
+    _update_led_state();
 }
 
 void set_error(uint8_t code, bool enabled) {
@@ -76,15 +76,15 @@ void set_error(uint8_t code, bool enabled) {
     }
 
     // update the led state
-    update_led_state();
+    _update_led_state();
 }
 
-static void update_led_state(void) {
+static void _update_led_state(void) {
 
     uint8_t warning = WARNING_INTIALIZING | WARNING_RECALIBRATING;
     // if in blocking setup processes
     if ((error_state & warning) != ERROR_NONE) {
-        enter_state_flicker();
+        _enter_state_flicker();
         return;
     }
 
@@ -95,25 +95,25 @@ static void update_led_state(void) {
     );
     // if user attention is needed, flash
     if ((error_state & error) != ERROR_NONE) {
-        enter_state_flash();
+        _enter_state_flash();
         return;
     }
     
     // if the sensor is below the set threshold
     if ((error_state & NOTIF_SENSOR_THRESHOLD) != ERROR_NONE) {
-        enter_state_on();
+        _enter_state_on();
         return;
     }
 
     // if all is clear, turn the LED off
     if (error_state == ERROR_NONE) {
-        enter_state_off();
+        _enter_state_off();
         return;
     }
 
 }
 
-static void enter_state_off(void) {
+static void _enter_state_off(void) {
 
     switch (led_state) {
         // if already in OFF state, do nothing
@@ -136,7 +136,7 @@ static void enter_state_off(void) {
     led_state = LED_OFF;
 }
 
-static void enter_state_on(void) {
+static void _enter_state_on(void) {
 
     switch (led_state) {
         // if already in ON state, do nothing
@@ -159,7 +159,7 @@ static void enter_state_on(void) {
     led_state = LED_ON;
 }
 
-static void enter_state_flash(void) {
+static void _enter_state_flash(void) {
 
     switch (led_state) {
         // if already in FLASH state, do nothing
@@ -174,11 +174,11 @@ static void enter_state_flash(void) {
     }
 
     // start a new timer and update the state
-    add_repeating_timer_ms(-500, led_timer_cb, NULL, &led_timer);
+    add_repeating_timer_ms(-500, _led_timer_cb, NULL, &led_timer);
     led_state = LED_FLASH;
 }
 
-static void enter_state_flicker(void) {
+static void _enter_state_flicker(void) {
 
     switch (led_state) {
         // if already in FLICKER state, do nothing
@@ -193,11 +193,11 @@ static void enter_state_flicker(void) {
     }
 
     // start a new timer and update the state
-    add_repeating_timer_ms(-50, led_timer_cb, NULL, &led_timer);
+    add_repeating_timer_ms(-50, _led_timer_cb, NULL, &led_timer);
     led_state = LED_FLICKER;
 }
 
-static bool led_timer_cb(repeating_timer_t* __unused) {
+static bool _led_timer_cb(repeating_timer_t* __unused) {
     led_on = !led_on;
     gpio_put(LED_PIN, led_on);
     return true;
