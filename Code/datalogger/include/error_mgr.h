@@ -2,7 +2,7 @@
 
 #include "pico/stdlib.h"
 
-enum error_code {
+enum ErrorCode {
     ERROR_NONE               = 0b00000000,
     ERROR_WIFI_DISCONNECTED  = 0b00000001,
     ERROR_NTP_SYNC_FAILED    = 0b00000010,
