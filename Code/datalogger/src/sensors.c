@@ -24,7 +24,7 @@ typedef struct {
 } calibration_t;
 
 // how long to wait between measurements
-static const uint32_t update_delay_us = 60000000ul;  // 1min
+static const uint32_t update_delay_us = 6000000ul;  // 1min
 // how long to wait between measurement retries
 static const uint32_t retry_delay_us = 1000000ul;  // 1sec
 // tracks when to take the next measurement
@@ -253,7 +253,9 @@ static bool _read_dht(measurement_t* result) {
         uint64_t high_duration = time_us_64() - high_start;
         
         // determine bit value based on high signal duration
-        data[i / 8u] |= (1u << (7u - (i % 8u)));
+        if (high_duration > 40u) {
+            data[i / 8u] |= (1u << (7u - (i % 8u)));
+        }
     }
     
     // verify checksum
