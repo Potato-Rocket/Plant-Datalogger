@@ -15,7 +15,7 @@
 // NTP server configuration
 #define NTP_PORT 123u
 #define NTP_SERVER "pool.ntp.org"
-#define TIME_ZONE_OFFSET -4u
+#define TIME_ZONE_OFFSET -4l
 
 // NTP packet structure (48 bytes)
 typedef struct __attribute__((packed)) {
@@ -140,6 +140,11 @@ void get_pretty_datetime(char* buffer, size_t buffer_size) {
     // make sure the buffer is null-terminated even if we fail
     buffer[0] = '\0';
 
+    if (!init_flag) {
+        strncpy(buffer, "RTC not yet initialized!", buffer_size);
+        return;
+    }
+
     // read from the RTC
     datetime_t t;
     rtc_get_datetime(&t);
@@ -148,7 +153,7 @@ void get_pretty_datetime(char* buffer, size_t buffer_size) {
     time_t epoch;
     datetime_to_time(&t, &epoch);
     // adjust to the local timezone
-    epoch += TIME_ZONE_OFFSET * 3600;
+    epoch += TIME_ZONE_OFFSET * 3600l;
     // convert to a standard datetime struct
     struct tm dt = *gmtime(&epoch);
 
@@ -164,6 +169,11 @@ void get_timestamp(char* buffer, size_t buffer_size) {
     }
     // make sure the buffer is null-terminated even if we fail
     buffer[0] = '\0';
+
+    if (!init_flag) {
+        strncpy(buffer, "NULL_DATETIME", buffer_size);
+        return;
+    }
 
     // read from the RTC
     datetime_t t;
