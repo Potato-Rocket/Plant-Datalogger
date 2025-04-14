@@ -45,7 +45,6 @@ static calibration_t soil_cal = {
 static const float soil_threshold = 10.0f;
 
 // stores the last recorded measurement
-// TODO: Make only update when a measurement is logging
 static measurement_t prev_measure = {
     .humidity = -1.0f,
     .temp_celsius = -1.0f,
@@ -164,8 +163,6 @@ bool update_sensors(void) {
     attempts = 0;
     return true;
 }
-
-// TODO: Add a function to determine whether a new measurement is called for
 
 static float _read_soil(void) {
     uint32_t sum = 0;

@@ -8,12 +8,6 @@
 #include "logging.h"
 #include "button.h"
 #include "error_mgr.h"
-// TODO: Add module for OLED display
-// TODO: Add module for SD card reader
-// TODO: Add module to manage EEPROM caching
-// TODO: Add module to manage configuration
-// TODO: Add module to manage logging messages
-// TODO: Add module to manage combined serial and logging
 
 int main() {
     // wait up to five seconds for the serial port to open
