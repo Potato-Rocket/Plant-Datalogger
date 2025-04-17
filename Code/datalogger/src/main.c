@@ -9,7 +9,8 @@
 #include "button.h"
 #include "error_mgr.h"
 
-int main() {
+int main()
+{
     // wait up to five seconds for the serial port to open
     stdio_init_all();
     sleep_ms(5000);
@@ -19,46 +20,53 @@ int main() {
     init_errors(WARNING_INTIALIZING | WARNING_RECALIBRATING);
 
     // try to connect to WiFi
-    if (!wifi_init()) {
+    if (!wifi_init())
+    {
         return -1;
     }
 
     // try to setup RTC
-    if (!rtc_safe_init()) {
+    if (!rtc_safe_init())
+    {
         return -1;
     }
 
     // try to setup NTP
-    if (!ntp_init()) {
+    if (!ntp_init())
+    {
         return -1;
     }
-    
+
     // initialize sensors
     init_button();
     init_sensors();
 
-    while (true) {
+    while (true)
+    {
         // checks once every ten seconds, blocking if reconnecting
-        if (should_check_wifi()) wifi_check_reconnect();
+        if (should_check_wifi())
+            wifi_check_reconnect();
 
         // ntp needs wifi, if not synchronized update the ntp routine
-        if (!rtc_synchronized()) ntp_request_time();
+        if (!rtc_synchronized())
+            ntp_request_time();
 
-        if (check_long_press()) calibrate_soil();
+        if (check_long_press())
+            calibrate_soil();
 
         // reads sensors once per minute
-        if (should_update_sensors()) {
+        if (should_update_sensors())
+        {
             // assume the rtc is more or less fine after init
             char buffer[64];
             get_pretty_datetime(&buffer[0], sizeof(buffer));
             printf("\nLocal time: %s\n", buffer);
 
             // update the sensors, print readings only if successful
-            if (update_sensors()) print_readings();
-            
+            if (update_sensors())
+                print_readings();
         }
 
         sleep_ms(10);
     }
-
 }

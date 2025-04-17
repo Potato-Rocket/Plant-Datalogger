@@ -14,6 +14,9 @@ typedef enum {
     LED_FLICKER,   // toggles at 10Hz
 } LedState;
 
+static const int16_t flash_period = -500l;
+static const int16_t flicker_period = -50l;
+
 // the current error code mask
 static uint8_t error_state = ERROR_NONE;
 // whether was last turned on or turned off (for toggling)
@@ -174,7 +177,7 @@ static void _enter_state_flash(void) {
     }
 
     // start a new timer and update the state
-    add_repeating_timer_ms(-500, _led_timer_cb, NULL, &led_timer);
+    add_repeating_timer_ms(-flash_period, _led_timer_cb, NULL, &led_timer);
     led_state = LED_FLASH;
 }
 
@@ -193,7 +196,7 @@ static void _enter_state_flicker(void) {
     }
 
     // start a new timer and update the state
-    add_repeating_timer_ms(-50, _led_timer_cb, NULL, &led_timer);
+    add_repeating_timer_ms(-flicker_period, _led_timer_cb, NULL, &led_timer);
     led_state = LED_FLICKER;
 }
 

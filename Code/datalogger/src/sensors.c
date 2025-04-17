@@ -12,22 +12,24 @@
 #define SOIL_PIN 26u
 
 // to store temperature and humidity readings
-typedef struct {
+typedef struct
+{
     float humidity;
     float temp_celsius;
     float soil_moisture;
 } measurement_t;
 
 // to store soil sensor calibration in slope-intercept form
-typedef struct {
+typedef struct
+{
     float slope;
     float intercept;
 } calibration_t;
 
 // how long to wait between measurements
-static const uint32_t update_delay_ms = 60000ul;  // 1min
+static const uint32_t update_delay_ms = 60000ul; // 1min
 // how long to wait between measurement retries
-static const uint32_t retry_delay_ms = 1000ul;  // 1sec
+static const uint32_t retry_delay_ms = 1000ul; // 1sec
 // tracks when to take the next measurement
 static absolute_time_t timeout = 0;
 // number of failed measurement attempts
@@ -56,7 +58,7 @@ static measurement_t measure;
 
 /**
  * Records 100 ADC readings and returns the average.
- * 
+ *
  * @return The average ADC valus
  */
 static float _read_soil(void);
@@ -66,14 +68,15 @@ static float _read_soil(void);
  * acknowledgement, then reads 40 bits of sensor data. Ones and zeroes
  * determined by pulse length. Verifies checksum, then writes data to the
  * measurement struct.
- * 
+ *
  * @param result Pointer to the measurement struct
- * 
+ *
  * @return `true` if successful, `false` otherwise
  */
-static bool _read_dht(measurement_t* result);
+static bool _read_dht(measurement_t *result);
 
-void init_sensors(void) {
+void init_sensors(void)
+{
 
     // set up DHT11
     gpio_init(DHT_PIN);
@@ -82,63 +85,74 @@ void init_sensors(void) {
     gpio_init(SOIL_PIN);
     adc_init();
     adc_select_input(0);
-    
-    calibrate_soil();
 
+    calibrate_soil();
 }
 
-void calibrate_soil(void) {
+void calibrate_soil(void)
+{
     set_error(WARNING_RECALIBRATING, true);
     float endpoints[2] = {0};
 
     printf("Calibrating soil sensor...\n");
     bool valid = false;
-    while (!valid) {
+    while (!valid)
+    {
         printf("Please wave soil sensor in air and press button.\n");
-        while (!check_press()) tight_loop_contents();
+        while (!check_press())
+            tight_loop_contents();
 
         endpoints[0] = _read_soil();
         printf("Dry reading: %.2f\n", endpoints[0]);
 
         printf("Please reconnect soil sensor and place in a cup of water.\n");
-        while (!check_press()) tight_loop_contents();
+        while (!check_press())
+            tight_loop_contents();
 
         endpoints[1] = _read_soil();
         printf("Wet reading: %.2f\n", endpoints[1]);
-        
-        if (fabsf(endpoints[1] - endpoints[0]) < min_cal_diff) {
+
+        if (fabsf(endpoints[1] - endpoints[0]) < min_cal_diff)
+        {
             printf("Error: Measurements too similar!\n");
-        } else {
+        }
+        else
+        {
             valid = true;
         }
     }
 
     soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
-    printf("Soil sensor calibrated! Slope: %.5f, Intercept: %.1f\n", 
+    printf("Soil sensor calibrated! Slope: %.5f, Intercept: %.1f\n",
            soil_cal.slope, soil_cal.intercept);
 
     set_error(WARNING_RECALIBRATING, false);
-    
+
     timeout = make_timeout_time_ms(update_delay_ms);
 }
 
-void print_readings(void) {
+void print_readings(void)
+{
     // formats most recent measurement
     printf("Temperature: %.0f°C, Humidity: %.0f%%, Soil moisture: %.1f%%\n",
            measure.temp_celsius, measure.humidity, measure.soil_moisture);
 }
 
-bool should_update_sensors(void) {
+bool should_update_sensors(void)
+{
     return is_timed_out(timeout);
 }
 
-bool update_sensors(void) {
+bool update_sensors(void)
+{
     // read sensors and track whether successful
-    if (!_read_dht(&measure)) {
+    if (!_read_dht(&measure))
+    {
         // retry sooner if failed
         attempts++;
-        if (attempts == 10u) {
+        if (attempts == 10u)
+        {
             set_error(ERROR_DHT11_READ_FAILED, true);
             timeout = make_timeout_time_ms(update_delay_ms);
             attempts = 0;
@@ -151,9 +165,12 @@ bool update_sensors(void) {
 
     // read soil moisture level
     float value = _read_soil() * soil_cal.slope + soil_cal.intercept;
-    if (value > 100.0f) {
+    if (value > 100.0f)
+    {
         value = 100.0f;
-    } else if (value < 0.0f) {
+    }
+    else if (value < 0.0f)
+    {
         value = 0.0f;
     }
     set_error(NOTIF_SENSOR_THRESHOLD, value < soil_threshold);
@@ -165,30 +182,34 @@ bool update_sensors(void) {
     return true;
 }
 
-static float _read_soil(void) {
+static float _read_soil(void)
+{
     uint32_t sum = 0;
 
     // discard first reading to avoid incorrect measurements
     adc_read();
 
-    for (uint8_t i = 0; i < soil_count; i++) {
+    for (uint8_t i = 0; i < soil_count; i++)
+    {
         sleep_us(10);
         sum += adc_read();
     }
     return (float)sum / soil_count;
 }
 
-static bool _read_dht(measurement_t* result) {
+static bool _read_dht(measurement_t *result)
+{
     // validate parameters
-    if (result == NULL) {
+    if (result == NULL)
+    {
         printf("Error: NULL pointer passed to read_dht\n");
         return false;
-    } 
+    }
     // buffer for the 5 bytes (40 bits) of data
     uint8_t data[5] = {0};
 
     // prevent any possible interrupts to protect timing
-    
+
     // start by switching to output and pulling pin low
     gpio_set_dir(DHT_PIN, GPIO_OUT);
     gpio_put(DHT_PIN, 0);
@@ -198,77 +219,91 @@ static bool _read_dht(measurement_t* result) {
 
     // switch to input, external pull-up will bring voltage up
     gpio_set_dir(DHT_PIN, GPIO_IN);
-    
+
     // MCU waits for DHT response (20-40us)
     timeout = time_us_64() + 50u;
-    while (gpio_get(DHT_PIN) == 1) {
-        if (time_us_64() > timeout) {
+    while (gpio_get(DHT_PIN) == 1)
+    {
+        if (time_us_64() > timeout)
+        {
             printf("DHT failed to respond to start signal\n");
             return false;
         }
     }
-    
+
     // DHT pulled low (80us), now waiting for it to pull high
     timeout = time_us_64() + 100u;
-    while (gpio_get(DHT_PIN) == 0) {
-        if (time_us_64() > timeout) {
+    while (gpio_get(DHT_PIN) == 0)
+    {
+        if (time_us_64() > timeout)
+        {
             printf("DHT failed to complete low response signal\n");
             return false;
         }
     }
-    
+
     // DHT pulled high (80us), now waiting for it to pull low again
     timeout = time_us_64() + 100u;
-    while (gpio_get(DHT_PIN) == 1) {
-        if (time_us_64() > timeout) {
+    while (gpio_get(DHT_PIN) == 1)
+    {
+        if (time_us_64() > timeout)
+        {
             printf("DHT failed to complete high response signal\n");
             return false;
         }
     }
-    
+
     // start reading the 40 bits (5 bytes) of data
-    for (uint8_t i = 0; i < 40u; i++) {
+    for (uint8_t i = 0; i < 40u; i++)
+    {
         // each bit starts with a 50us low signal
         timeout = time_us_64() + 70u;
-        while (gpio_get(DHT_PIN) == 0) {
-            if (time_us_64() > timeout) {
+        while (gpio_get(DHT_PIN) == 0)
+        {
+            if (time_us_64() > timeout)
+            {
                 printf("Timeout waiting for bit %d start (low)\n", i);
                 return false;
             }
         }
-        
+
         // length of high signal determines bit value (26-28us for '0', 70us for '1')
         uint64_t high_start = time_us_64();
         timeout = high_start + 100u;
-        
-        while (gpio_get(DHT_PIN) == 1) {
-            if (time_us_64() > timeout) {
+
+        while (gpio_get(DHT_PIN) == 1)
+        {
+            if (time_us_64() > timeout)
+            {
                 printf("Timeout waiting for bit %d end (high)\n", i);
                 return false;
             }
         }
-        
+
         uint64_t high_duration = time_us_64() - high_start;
-        
+
         // determine bit value based on high signal duration
-        if (high_duration > 40u) {
+        if (high_duration > 40u)
+        {
             data[i / 8u] |= (1u << (7u - (i % 8u)));
         }
     }
-    
+
     // verify checksum
     uint8_t checksum = data[0] + data[1] + data[2] + data[3];
-    if (checksum != data[4]) {
+    if (checksum != data[4])
+    {
         printf("Checksum failed: calculated 0x%02x, received 0x%02x\n", checksum, data[4]);
         return false;
     }
-    
+
     // for DHT11, the decimal parts are usually 0, but we'll include them anyway
     result->humidity = (float)data[0];
     result->temp_celsius = (float)(data[2] & 0x7F);
-    
+
     // check for negative temperature (MSB of data[2])
-    if (data[2] & 0x80) {
+    if (data[2] & 0x80)
+    {
         result->temp_celsius = -result->temp_celsius;
     }
 

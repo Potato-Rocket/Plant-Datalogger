@@ -230,6 +230,10 @@ bool ntp_init(void)
     init_flag = true;
     set_error(WARNING_INTIALIZING, false);
 
+    char buffer[32];
+    get_timestamp(&buffer[0], sizeof(buffer));
+    printf("UTC: %s\n", buffer);
+
     return true;
 }
 
@@ -277,7 +281,7 @@ bool ntp_request_time(void)
         // DNS resolution in progress, callback will send request
         printf("Resolving NTP server address...\n");
         ntp_request_pending = true;
-        timeout = make_timeout_time(ntp_timeout_ms);
+        timeout = make_timeout_time_ms(ntp_timeout_ms);
         return true;
     }
     else
@@ -367,11 +371,11 @@ static bool _ntp_send_request(void)
     // sends the first request with a smaller timeout to avoid needless waiting
     if (sync_attempts > 0)
     {
-        timeout = make_timeout_time(ntp_timeout_ms);
+        timeout = make_timeout_time_ms(ntp_timeout_ms);
     }
     else
     {
-        timeout = make_timeout_time(ntp_init_timeout_ms);
+        timeout = make_timeout_time_ms(ntp_init_timeout_ms);
     }
     return true;
 }
@@ -428,10 +432,6 @@ static void _ntp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     set_error(ERROR_NTP_SYNC_FAILED, false);
 
     printf("RTC synchronized with NTP!\n");
-
-    char buffer[32];
-    get_timestamp(&buffer[0], sizeof(buffer));
-    printf("UTC: %s\n", buffer);
 
     // frees memory allocated to package buffer
     pbuf_free(p);
