@@ -22,7 +22,7 @@ static const uint32_t base_retry_delay_ms = 3600000ul; // 1hr
 static const uint32_t max_retry_delay_ms = 300000ul; // 5min
 
 // dynamic wait between reconnection attempts
-static uint32_t retry_delay_ms = base_retry_delay_ms;
+static uint32_t retry_delay = base_retry_delay_ms;
 // tracks when a new wifi check can happen
 static absolute_time_t timeout = 0;
 
@@ -49,7 +49,7 @@ bool wifi_init(void)
     printf("Wifi connection success!\n");
 
     // set flag and recheck timeout
-    timeout = make_timeout_time_ms(retry_delay_ms);
+    timeout = make_timeout_time_ms(retry_delay);
     is_connected = true;
     return true;
 }
@@ -66,8 +66,8 @@ void wifi_check_reconnect(void)
     if (cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA) == CYW43_LINK_UP)
     {
         // if up, reset delay, timout, flag
-        retry_delay_ms = base_retry_delay_ms;
-        timeout = make_timeout_time_ms(retry_delay_ms);
+        retry_delay = base_retry_delay_ms;
+        timeout = make_timeout_time_ms(retry_delay);
         is_connected = true;
         set_error(ERROR_WIFI_DISCONNECTED, false);
         return;
@@ -80,21 +80,21 @@ void wifi_check_reconnect(void)
     {
         printf("Wifi reconnection failed!\n");
         // if failed, double the delay until the next retry
-        retry_delay_ms *= 2;
+        retry_delay *= 2;
         // cap the maximum retry duration
-        if (retry_delay_ms > max_retry_delay_ms)
+        if (retry_delay > max_retry_delay_ms)
         {
-            retry_delay_ms = max_retry_delay_ms;
+            retry_delay = max_retry_delay_ms;
             set_error(ERROR_WIFI_DISCONNECTED, true);
         }
         // update the timeout and flag
-        timeout = make_timeout_time_ms(retry_delay_ms);
+        timeout = make_timeout_time_ms(retry_delay);
         is_connected = false;
         return;
     }
     // if successfully reconnected, reset delay, timeout, flag
-    retry_delay_ms = base_retry_delay_ms;
-    timeout = make_timeout_time_ms(retry_delay_ms);
+    retry_delay = base_retry_delay_ms;
+    timeout = make_timeout_time_ms(retry_delay);
     printf("Wifi reconnection success!\n");
 
     is_connected = true;

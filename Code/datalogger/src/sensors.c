@@ -2,6 +2,7 @@
 #include <math.h>
 
 #include "sensors.h"
+#include "utils.h"
 #include "button.h"
 #include "error_mgr.h"
 
@@ -24,13 +25,13 @@ typedef struct {
 } calibration_t;
 
 // how long to wait between measurements
-static const uint32_t update_delay_us = 6000000ul;  // 1min
+static const uint32_t update_delay_ms = 60000ul;  // 1min
 // how long to wait between measurement retries
-static const uint32_t retry_delay_ms = 1000000ul;  // 1sec
+static const uint32_t retry_delay_ms = 1000ul;  // 1sec
 // tracks when to take the next measurement
-static uint64_t timeout = 0;
+static absolute_time_t timeout = 0;
 // number of failed measurement attempts
-static uint32_t attempts = 0;
+static uint8_t attempts = 0;
 
 // number of soil moisture meaurements to average
 static const uint8_t soil_count = 100u;
@@ -119,7 +120,7 @@ void calibrate_soil(void) {
 
     set_error(WARNING_RECALIBRATING, false);
     
-    timeout = time_us_64() + update_delay_us;
+    timeout = make_timeout_time_ms(update_delay_ms);
 }
 
 void print_readings(void) {
@@ -129,7 +130,7 @@ void print_readings(void) {
 }
 
 bool should_update_sensors(void) {
-    return time_us_64() > timeout;
+    return is_timed_out(timeout);
 }
 
 bool update_sensors(void) {
@@ -139,11 +140,11 @@ bool update_sensors(void) {
         attempts++;
         if (attempts == 10u) {
             set_error(ERROR_DHT11_READ_FAILED, true);
-            timeout = time_us_64() + update_delay_us;
+            timeout = make_timeout_time_ms(update_delay_ms);
             attempts = 0;
             return false;
         }
-        timeout = time_us_64() + retry_delay_ms;
+        timeout = make_timeout_time_ms(retry_delay_ms);
         return false;
     }
     set_error(ERROR_DHT11_READ_FAILED, false);
@@ -159,7 +160,7 @@ bool update_sensors(void) {
     measure.soil_moisture = value;
 
     // update timeout after sensor reading
-    timeout = time_us_64() + update_delay_us;
+    timeout = make_timeout_time_ms(update_delay_ms);
     attempts = 0;
     return true;
 }
