@@ -14,4 +14,4 @@ The red indicator LED varies behavior depending on the state of the dataloggers 
 
 ## Schematics
 
-![schematic](Schematics/plant-datalogger/plant-datalogger.svg)
+![schematic](Schematics/plant-datalogger/plant-datalogger.png)
