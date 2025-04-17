@@ -1,0 +1,9 @@
+[submodule "Code/datalogger/lib/no-OS-FatFS-SD-SPI-RPi-Pico"]
+	path = Code/datalogger/lib/no-OS-FatFS-SD-SPI-RPi-Pico
+	url = git@github.com:carlk3/no-OS-FatFS-SD-SPI-RPi-Pico.git
+[submodule "Code/datalogger/lib/pico_dht"]
+	path = Code/datalogger/lib/pico_dht
+	url = git@github.com:vmilea/pico_dht.git
+[submodule "Code/datalogger/lib/pico-ssd1306"]
+	path = Code/datalogger/lib/pico-ssd1306
+	url = git@github.com:daschr/pico-ssd1306.git
