@@ -26,7 +26,7 @@ typedef struct {
 // how long to wait between measurements
 static const uint32_t update_delay_us = 6000000ul;  // 1min
 // how long to wait between measurement retries
-static const uint32_t retry_delay_us = 1000000ul;  // 1sec
+static const uint32_t retry_delay_ms = 1000000ul;  // 1sec
 // tracks when to take the next measurement
 static uint64_t timeout = 0;
 // number of failed measurement attempts
@@ -143,7 +143,7 @@ bool update_sensors(void) {
             attempts = 0;
             return false;
         }
-        timeout = time_us_64() + retry_delay_us;
+        timeout = time_us_64() + retry_delay_ms;
         return false;
     }
     set_error(ERROR_DHT11_READ_FAILED, false);
