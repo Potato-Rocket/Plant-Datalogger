@@ -8,7 +8,10 @@
 
 #include "hardware/adc.h"
 
+#include "dht.h"
+
 #define DHT_PIN 6u
+#define DHT_MODEL DHT11
 #define SOIL_PIN 26u
 
 // to store temperature and humidity readings
@@ -27,13 +30,15 @@ typedef struct
 } calibration_t;
 
 // how long to wait between measurements
-static const uint32_t update_delay_ms = 60000ul; // 1min
+static const uint32_t update_delay_ms = 6000ul; // 1min
 // how long to wait between measurement retries
 static const uint32_t retry_delay_ms = 1000ul; // 1sec
 // tracks when to take the next measurement
 static absolute_time_t timeout = 0;
 // number of failed measurement attempts
 static uint8_t attempts = 0;
+// dht sensor object
+static dht_t dht;
 
 // number of soil moisture meaurements to average
 static const uint8_t soil_count = 100u;
@@ -69,17 +74,16 @@ static float _read_soil(void);
  * determined by pulse length. Verifies checksum, then writes data to the
  * measurement struct.
  *
- * @param result Pointer to the measurement struct
+ * @param measure Pointer to the measurement struct
  *
  * @return `true` if successful, `false` otherwise
  */
-static bool _read_dht(measurement_t *result);
+static bool _read_dht(measurement_t *measure);
 
 void init_sensors(void)
 {
-
     // set up DHT11
-    gpio_init(DHT_PIN);
+    dht_init(&dht, DHT_MODEL, pio0, DHT_PIN, false);
 
     // set up soil moisture sensor
     gpio_init(SOIL_PIN);
@@ -197,115 +201,18 @@ static float _read_soil(void)
     return (float)sum / soil_count;
 }
 
-static bool _read_dht(measurement_t *result)
+static bool _read_dht(measurement_t *measure)
 {
-    // validate parameters
-    if (result == NULL)
-    {
-        printf("Error: NULL pointer passed to read_dht\n");
-        return false;
-    }
-    // buffer for the 5 bytes (40 bits) of data
-    uint8_t data[5] = {0};
-
-    // prevent any possible interrupts to protect timing
-
-    // start by switching to output and pulling pin low
-    gpio_set_dir(DHT_PIN, GPIO_OUT);
-    gpio_put(DHT_PIN, 0);
-
-    // MCU sends start signal and waits 20ms (min 18ms per datasheet)
-    sleep_ms(20);
-
-    // switch to input, external pull-up will bring voltage up
-    gpio_set_dir(DHT_PIN, GPIO_IN);
-
-    // MCU waits for DHT response (20-40us)
-    timeout = time_us_64() + 50u;
-    while (gpio_get(DHT_PIN) == 1)
-    {
-        if (time_us_64() > timeout)
-        {
-            printf("DHT failed to respond to start signal\n");
+    dht_start_measurement(&dht);
+    dht_result_t result = dht_finish_measurement_blocking(&dht, &measure->humidity, &measure->temp_celsius);
+    switch (result) {
+        case DHT_RESULT_OK:
+            return true;
+        case DHT_RESULT_BAD_CHECKSUM:
+            printf("DHT read failed: Bad checksum");
             return false;
-        }
-    }
-
-    // DHT pulled low (80us), now waiting for it to pull high
-    timeout = time_us_64() + 100u;
-    while (gpio_get(DHT_PIN) == 0)
-    {
-        if (time_us_64() > timeout)
-        {
-            printf("DHT failed to complete low response signal\n");
+        case DHT_RESULT_TIMEOUT:
+            printf("DHT read failed: DHT timed out");
             return false;
-        }
     }
-
-    // DHT pulled high (80us), now waiting for it to pull low again
-    timeout = time_us_64() + 100u;
-    while (gpio_get(DHT_PIN) == 1)
-    {
-        if (time_us_64() > timeout)
-        {
-            printf("DHT failed to complete high response signal\n");
-            return false;
-        }
-    }
-
-    // start reading the 40 bits (5 bytes) of data
-    for (uint8_t i = 0; i < 40u; i++)
-    {
-        // each bit starts with a 50us low signal
-        timeout = time_us_64() + 70u;
-        while (gpio_get(DHT_PIN) == 0)
-        {
-            if (time_us_64() > timeout)
-            {
-                printf("Timeout waiting for bit %d start (low)\n", i);
-                return false;
-            }
-        }
-
-        // length of high signal determines bit value (26-28us for '0', 70us for '1')
-        uint64_t high_start = time_us_64();
-        timeout = high_start + 100u;
-
-        while (gpio_get(DHT_PIN) == 1)
-        {
-            if (time_us_64() > timeout)
-            {
-                printf("Timeout waiting for bit %d end (high)\n", i);
-                return false;
-            }
-        }
-
-        uint64_t high_duration = time_us_64() - high_start;
-
-        // determine bit value based on high signal duration
-        if (high_duration > 40u)
-        {
-            data[i / 8u] |= (1u << (7u - (i % 8u)));
-        }
-    }
-
-    // verify checksum
-    uint8_t checksum = data[0] + data[1] + data[2] + data[3];
-    if (checksum != data[4])
-    {
-        printf("Checksum failed: calculated 0x%02x, received 0x%02x\n", checksum, data[4]);
-        return false;
-    }
-
-    // for DHT11, the decimal parts are usually 0, but we'll include them anyway
-    result->humidity = (float)data[0];
-    result->temp_celsius = (float)(data[2] & 0x7F);
-
-    // check for negative temperature (MSB of data[2])
-    if (data[2] & 0x80)
-    {
-        result->temp_celsius = -result->temp_celsius;
-    }
-
-    return true;
 }

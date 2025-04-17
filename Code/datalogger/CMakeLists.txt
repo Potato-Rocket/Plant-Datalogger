@@ -50,10 +50,14 @@ pico_enable_stdio_usb(datalogger 1)
 target_link_libraries(datalogger
         pico_stdlib)
 
+# Add third party libraries
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/pico_dht/dht)
+
 # Add the standard include files to the build
 target_include_directories(datalogger PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/lib/pico_dht/dht/include
         )
 
 # Add any user requested libraries
@@ -61,6 +65,7 @@ target_link_libraries(datalogger
         hardware_rtc
         hardware_adc
         pico_cyw43_arch_lwip_threadsafe_background
+        dht
         )
 
 add_custom_command(TARGET datalogger
