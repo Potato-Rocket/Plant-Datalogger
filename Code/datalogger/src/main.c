@@ -12,7 +12,7 @@ int main()
     // wait up to five seconds for the serial port to open
     stdio_init_all();
     sleep_ms(5000);
-    log_message(LOG_INFO, LOG_SYSTEM, "Initializing startup...");
+    log_message(LOG_INFO, LOG_SYSTEM, "Initializing datalogger...");
 
     // initialize error indicator state machine
     init_errors(WARNING_INTIALIZING | WARNING_RECALIBRATING);
@@ -58,7 +58,7 @@ int main()
             // assume the rtc is more or less fine after init
             char buffer[64];
             get_pretty_datetime(&buffer[0], sizeof(buffer));
-            stdio_printf("\nLocal time: %s\n", buffer);
+            log_message(LOG_INFO, LOG_RTC, "\nLocal time: %s", buffer);
 
             // update the sensors, print readings only if successful
             if (update_sensors())
