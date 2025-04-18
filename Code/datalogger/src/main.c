@@ -14,8 +14,8 @@ int main()
     stdio_init_all();
     sleep_ms(5000);
     log_message(LOG_INFO, LOG_SYSTEM, "Initializing datalogger...");
-    
-    open_sd();
+
+    init_sd();
 
     // initialize error indicator state machine
     init_errors(WARNING_INTIALIZING | WARNING_RECALIBRATING);

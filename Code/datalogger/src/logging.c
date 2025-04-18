@@ -24,7 +24,7 @@ static const char *log_category_str[] = {
 };
 
 // the current log level to print
-static const LogLevel log_level = LOG_INFO;
+static const LogLevel log_level = LOG_DEBUG;
 
 void log_message(LogLevel lvl, LogCategory cat, const char *fmt, ...)
 {
