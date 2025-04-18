@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "button.h"
 #include "utils.h"
 

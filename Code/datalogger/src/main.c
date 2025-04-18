@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "pico/stdlib.h"
 
 #include "wifi_mgr.h"
@@ -14,7 +12,7 @@ int main()
     // wait up to five seconds for the serial port to open
     stdio_init_all();
     sleep_ms(5000);
-    printf("Initializing startup...\n");
+    stdio_puts("Initializing startup...");
 
     // initialize error indicator state machine
     init_errors(WARNING_INTIALIZING | WARNING_RECALIBRATING);
@@ -60,7 +58,7 @@ int main()
             // assume the rtc is more or less fine after init
             char buffer[64];
             get_pretty_datetime(&buffer[0], sizeof(buffer));
-            printf("\nLocal time: %s\n", buffer);
+            stdio_printf("\nLocal time: %s\n", buffer);
 
             // update the sensors, print readings only if successful
             if (update_sensors())

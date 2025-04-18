@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "wifi_mgr.h"
 #include "utils.h"
 #include "error_mgr.h"
@@ -31,10 +29,10 @@ bool wifi_init(void)
     // initialize the WiFi chip
     if (cyw43_arch_init() != 0)
     {
-        printf("Wi-Fi init failed!\n");
+        stdio_puts("Wi-Fi init failed!");
         return false;
     }
-    printf("Wi-Fi init success!\n");
+    stdio_puts("Wi-Fi init success!");
 
     // enable station mode
     cyw43_arch_enable_sta_mode();
@@ -43,10 +41,10 @@ bool wifi_init(void)
     if (cyw43_arch_wifi_connect_timeout_ms(SSID, PASS,
                                            CYW43_AUTH_WPA2_AES_PSK, init_timeout_ms) != 0)
     {
-        printf("Wifi connection failed!\n");
+        stdio_puts("Wifi connection failed!");
         return false;
     }
-    printf("Wifi connection success!\n");
+    stdio_puts("Wifi connection success!");
 
     // set flag and recheck timeout
     timeout = make_timeout_time_ms(retry_delay);
@@ -72,13 +70,13 @@ void wifi_check_reconnect(void)
         set_error(ERROR_WIFI_DISCONNECTED, false);
         return;
     }
-    printf("WiFi disconnected! Attempting reconnection...");
+    stdio_puts("WiFi disconnected! Attempting reconnection...");
 
     // otherwise, attempt to reconnect
     if (cyw43_arch_wifi_connect_timeout_ms(SSID, PASS,
                                            CYW43_AUTH_WPA2_AES_PSK, init_timeout_ms) != 0)
     {
-        printf("Wifi reconnection failed!\n");
+        stdio_puts("Wifi reconnection failed!");
         // if failed, double the delay until the next retry
         retry_delay *= 2;
         // cap the maximum retry duration
@@ -95,7 +93,7 @@ void wifi_check_reconnect(void)
     // if successfully reconnected, reset delay, timeout, flag
     retry_delay = base_retry_delay_ms;
     timeout = make_timeout_time_ms(retry_delay);
-    printf("Wifi reconnection success!\n");
+    stdio_puts("Wifi reconnection success!");
 
     is_connected = true;
     set_error(ERROR_WIFI_DISCONNECTED, false);

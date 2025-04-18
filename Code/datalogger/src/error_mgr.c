@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "error_mgr.h"
 
 #define LED_PIN 22u
