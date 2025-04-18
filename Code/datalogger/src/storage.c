@@ -1,10 +1,15 @@
 #include <string.h>
 
+#include "storage.h"
+#include "logging.h"
+
 #include "my_debug.h"
 #include "hw_config.h"
 #include "ff.h"     /* Obtains integer types */
 #include "diskio.h" /* Declarations of disk functions */
 #include "f_util.h"
+
+#define INDICATOR 7u
 
 // Hardware Configuration of SPI "objects"
 // Note: multiple SD cards can be driven by one SPI if they use different slave
@@ -65,3 +70,42 @@ spi_t *spi_get_by_num(size_t num)
 
 /* ********************** Implemenations for storage.h ********************** */
 
+bool open_sd(void) {
+    sd_card_t *sd = sd_get_by_num(0);
+
+    FRESULT fr = f_mount(&sd->fatfs, sd->pcName, 1);
+
+    if (FR_OK != fr)
+    {
+        log_message(LOG_ERROR, LOG_SD, "f_mount error: %s (%d)", FRESULT_str(fr), fr);
+        return false;
+    }
+
+    FIL file;
+    const char* const filename = "filename.txt";
+    fr = f_open(&file, filename, FA_OPEN_APPEND | FA_WRITE);
+
+    if (FR_OK != fr && FR_EXIST != fr)
+    {
+        log_message(LOG_ERROR, LOG_SD, "f_open(%s) error: %s (%d)", filename, FRESULT_str(fr), fr);
+        return false;
+    }
+
+    bool success = true;
+
+    if (f_printf(&file, "Hello, world!\n") < 0) {
+        log_message(LOG_WARN, LOG_SD, "f_printf failed");
+        success = false;
+    }
+
+    fr = f_close(&file);
+
+    if (FR_OK != fr) {
+        log_message(LOG_WARN, LOG_SD, "f_close error: %s (%d)", FRESULT_str(fr), fr);
+        success = false;
+    }
+
+    f_unmount(sd->pcName);
+
+    return success;
+}

@@ -20,6 +20,7 @@ static const char *log_category_str[] = {
     "RTC",
     "BUTTON",
     "LED",
+    "SD",
 };
 
 // the current log level to print

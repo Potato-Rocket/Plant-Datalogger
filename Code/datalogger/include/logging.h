@@ -25,12 +25,14 @@ typedef enum
     LOG_RTC,     // related to the RTC
     LOG_BUTTON,  // related to the button
     LOG_LED,     // related to the indicator light
+    LOG_SD,      // related to the SD card
 } LogCategory;
 
 /**
  * Structured logging function. If the log level is above the defined logging
  * level, the message will be printed with a timestamp, the message level, and
- * the message category. Formats strings using `printf`.
+ * the message category. Formats strings using `printf`, appends a newline
+ * character automatically.
  * 
  * @param lvl The log level of the message
  * @param cat The category of the message
