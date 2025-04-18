@@ -5,7 +5,7 @@
 typedef enum
 {
     LOG_ERROR,
-    LOG_WARNING,
+    LOG_WARN,
     LOG_INFO,
     LOG_DEBUG,
 } LogLevel;

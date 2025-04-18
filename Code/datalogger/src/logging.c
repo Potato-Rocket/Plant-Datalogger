@@ -4,7 +4,7 @@
 
 static const char *log_level_str[] = {
     "ERROR",
-    "WARNING",
+    "WARN",
     "INFO",
     "DEBUG",
 };
@@ -25,15 +25,15 @@ void log_message(LogLevel lvl, LogCategory cat, const char *fmt, ...)
         return;
     }
 
-    uint64_t timestamp = to_us_since_boot(get_absolute_time()) / 1000;
-    uint32_t hours = (uint32_t)(timestamp / 3600000ul);
-    uint8_t minutes = (uint8_t)((timestamp / 60000ul) % 60);
-    uint8_t seconds = (uint8_t)((timestamp / 1000u) % 60);
-    uint16_t millis = (uint16_t)(timestamp % 1000u);
+    uint64_t timestamp = to_us_since_boot(get_absolute_time());
+    uint32_t hours = (uint32_t)(timestamp / 3600000000ull);
+    uint8_t minutes = (uint8_t)((timestamp / 60000000ul) % 60);
+    uint8_t seconds = (uint8_t)((timestamp / 1000000ul) % 60);
+    uint16_t millis = (uint32_t)(timestamp % 1000000ul);
 
     char buffer[256];
     uint8_t len = snprintf(buffer, sizeof(buffer),
-                           "[%u:%02u:%02u.%03u][%s][%s] ",
+                           "[%u:%02u:%02u.%06u][%5s][%6s] ",
                            hours, minutes, seconds, millis,
                            log_level_str[lvl], log_category_str[cat]);
 

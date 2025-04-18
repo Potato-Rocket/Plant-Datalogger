@@ -1,9 +1,11 @@
 #include <string.h>
+#include <stdarg.h>
 
 #include "time_sync.h"
 #include "utils.h"
 #include "wifi_mgr.h"
 #include "error_mgr.h"
+#include "logging.h"
 
 #include "pico/util/datetime.h"
 #include "hardware/rtc.h"
@@ -49,11 +51,11 @@ static const datetime_t t_default = {
 };
 
 // how long to wait for the RTC to be running
-static const uint32_t rtc_init_timeout_ms = 5000ul; // 5sec
+static const uint16_t rtc_init_timeout_ms = 5000u; // 5sec
 // how long to wait for NTP operations to timeout
-static const uint32_t ntp_timeout_ms = 15000ul; // 15sec
+static const uint16_t ntp_timeout_ms = 15000u; // 15sec
 // how long to wait for the first NTP request sent to timeout
-static const uint32_t ntp_init_timeout_ms = 1000ul; // 1sec
+static const uint16_t ntp_init_timeout_ms = 1000u; // 1sec
 // how long to wait before resyncing is needed
 static const uint64_t sync_timeout_ms = 86400000ull; // 24hr
 
@@ -90,7 +92,7 @@ static bool ntp_request_pending = false;
  * Handles any sort of error from the NTP sync routine. Resets the pending flag,
  * updates the retry delay, and sets the timeout until the next attempt.
  */
-static void _ntp_handle_error(void);
+static void _ntp_handle_error(const char *fmt, ...);
 
 /**
  * Function to create an NTP request packet, and send it to the resolved IP
@@ -121,16 +123,17 @@ bool rtc_safe_init(void)
     // set the default datetime
     rtc_set_datetime(&t_default);
     // wait for the RTC to start running
+    log_message(LOG_INFO, LOG_RTC, "Initializing RTC...");
     timeout = make_timeout_time_ms(rtc_init_timeout_ms);
     while (!rtc_running())
     {
         if (is_timed_out(timeout))
         {
-            stdio_puts("RTC init timed out!");
+            log_message(LOG_ERROR, LOG_RTC, "RTC init timed out!");
             return false;
         }
     }
-    stdio_puts("RTC init success!");
+    log_message(LOG_INFO, LOG_RTC, "RTC init success");
 
     return true;
 }
@@ -140,7 +143,7 @@ void get_pretty_datetime(char *buffer, size_t buffer_size)
     // validate parameters
     if (buffer == NULL || buffer_size < 1)
     {
-        stdio_puts("Error: Invalid buffer provided to get_pretty_datetime");
+        log_message(LOG_WARN, LOG_RTC, "Invalid buffer provided to get_pretty_datetime()");
         return;
     }
     // make sure the buffer is null-terminated even if we fail
@@ -148,7 +151,7 @@ void get_pretty_datetime(char *buffer, size_t buffer_size)
 
     if (!init_flag)
     {
-        strncpy(buffer, "RTC not yet initialized!", buffer_size);
+        log_message(LOG_WARN, LOG_RTC, "Tried to print datetime but RTC not initialized");
         return;
     }
 
@@ -173,7 +176,7 @@ void get_timestamp(char *buffer, size_t buffer_size)
     // validate parameters
     if (buffer == NULL || buffer_size < 1)
     {
-        stdio_puts("Error: Invalid buffer provided to get_pretty_datetime");
+        log_message(LOG_WARN, LOG_RTC, "Invalid buffer provided to get_timestamp()");
         return;
     }
     // make sure the buffer is null-terminated even if we fail
@@ -181,7 +184,7 @@ void get_timestamp(char *buffer, size_t buffer_size)
 
     if (!init_flag)
     {
-        strncpy(buffer, "NULL_DATETIME", buffer_size);
+        log_message(LOG_WARN, LOG_RTC, "Tried to print datetime but RTC not initialized");
         return;
     }
 
@@ -213,14 +216,15 @@ bool ntp_init(void)
     ntp_pcb = udp_new();
     if (ntp_pcb == NULL)
     {
-        stdio_puts("Failed to create UDP PCB for NTP!");
+        log_message(LOG_ERROR, LOG_NTP, "Failed to create UDP PCB for NTP!");
         return false;
     }
 
     // Sets up ntp recieved callback
     udp_recv(ntp_pcb, _ntp_recv_callback, NULL);
 
-    stdio_puts("NTP initialized!");
+    log_message(LOG_INFO, LOG_NTP, "NTP control block initialized");
+    timeout = get_absolute_time();
 
     while (!is_synchronized)
     {
@@ -231,7 +235,7 @@ bool ntp_init(void)
 
     char buffer[32];
     get_timestamp(&buffer[0], sizeof(buffer));
-    stdio_printf("UTC: %s\n", buffer);
+    log_message(LOG_INFO, LOG_RTC, "UTC: %s", buffer);
 
     return true;
 }
@@ -245,8 +249,7 @@ bool ntp_request_time(void)
         // check if previous request timed out
         if (is_timed_out(timeout))
         {
-            stdio_puts("NTP request timed out!");
-            _ntp_handle_error();
+            _ntp_handle_error("NTP request timed out");
         }
         else
         {
@@ -263,7 +266,7 @@ bool ntp_request_time(void)
     wifi_check_reconnect();
     if (!wifi_connected())
     {
-        stdio_puts("NTP request failed: WiFi not connected");
+        log_message(LOG_WARN, LOG_NTP, "Cannot send NTP request because Wi-Fi not connected");
         return false;
     }
 
@@ -278,23 +281,24 @@ bool ntp_request_time(void)
     else if (err == ERR_INPROGRESS)
     {
         // DNS resolution in progress, callback will send request
-        stdio_puts("Resolving NTP server address...");
+        log_message(LOG_INFO, LOG_NTP, "Resolving NTP server address...");
         ntp_request_pending = true;
         timeout = make_timeout_time_ms(ntp_timeout_ms);
         return true;
     }
     else
     {
-        stdio_printf("DNS resolution failed with error %d\n", err);
-        _ntp_handle_error();
+        _ntp_handle_error("DNS resolution failed with error %d", err);
         return false;
     }
 }
 
-static void _ntp_handle_error(void)
+static void _ntp_handle_error(const char* fmt, ...)
 {
     // reset the pending flag
     ntp_request_pending = false;
+    va_list args;
+    va_start(args, fmt);
     // if not the first attempt, and this isn't the startup sequence
     if (sync_attempts > 0 && init_flag)
     {
@@ -306,14 +310,24 @@ static void _ntp_handle_error(void)
         if (sync_retry_delay > max_retry_delay_ms)
         {
             sync_retry_delay = max_retry_delay_ms;
+            // add an exclamation to the warning message
+            char temp[256];
+            snprintf(temp, sizeof(temp), "%s!", fmt);
+            log_message(LOG_ERROR, LOG_NTP, temp, args);
             set_error(ERROR_NTP_SYNC_FAILED, true);
+        }
+        else 
+        {
+            log_message(LOG_WARN, LOG_NTP, fmt, args);
         }
     }
     else
     {
         // otherwise no retry delay
         timeout = get_absolute_time();
+        log_message(LOG_WARN, LOG_NTP, fmt, args);
     }
+    va_end(args);
     // increment the attempt counter
     sync_attempts++;
 }
@@ -323,14 +337,13 @@ static void _ntp_dns_callback(const char *name, const ip_addr_t *addr,
 {
     if (addr == NULL)
     {
-        stdio_puts("NTP server DNS resolution failed!");
-        ntp_request_pending = false;
+        _ntp_handle_error("NTP server DNS resolution failed");
         return;
     }
 
     // save NTP server address
     memcpy(&ntp_server_addr, addr, sizeof(ip_addr_t));
-    stdio_printf("NTP server resolved to %s\n", ipaddr_ntoa(addr));
+    log_message(LOG_INFO, LOG_NTP, "NTP server resolved to %s", ipaddr_ntoa(addr));
 
     // send NTP request
     _ntp_send_request();
@@ -342,8 +355,7 @@ static bool _ntp_send_request(void)
     struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(ntp_packet_t), PBUF_RAM);
     if (p == NULL)
     {
-        stdio_puts("Failed to allocate packet buffer for NTP request!");
-        _ntp_handle_error();
+        _ntp_handle_error("Failed to allocate packet buffer for NTP request");
         return false;
     }
 
@@ -360,12 +372,11 @@ static bool _ntp_send_request(void)
 
     if (err != ERR_OK)
     {
-        stdio_printf("Failed to send NTP request, error: %d\n", err);
-        _ntp_handle_error();
+        _ntp_handle_error("Failed to send NTP request, error: %d", err);
         return false;
     }
 
-    stdio_puts("NTP request sent...");
+    log_message(LOG_INFO, LOG_NTP, "NTP request sent...");
     ntp_request_pending = true;
     // sends the first request with a smaller timeout to avoid needless waiting
     if (sync_attempts > 0)
@@ -385,21 +396,19 @@ static void _ntp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 
     if (p == NULL)
     {
-        stdio_puts("Received NULL NTP response!");
-        _ntp_handle_error();
+        _ntp_handle_error("Received NULL NTP response");
         return;
     }
-    stdio_puts("Received NTP response, processing...");
+    log_message(LOG_INFO, LOG_NTP, "Received NTP response, processing...");
 
     // check packet size
     if (p->len != sizeof(ntp_packet_t))
     {
-        stdio_printf("NTP of incorrect size: %d bytes\n", p->len);
         pbuf_free(p);
-        _ntp_handle_error();
+        _ntp_handle_error("Packet of incorrect size: %d bytes", p->len);
         return;
     }
-    stdio_printf("Packet size OK: %d bytes\n", p->len);
+    log_message(LOG_INFO, LOG_NTP, "Packet size OK: %d bytes", p->len);
 
     // extract NTP packet from buffer
     ntp_packet_t *ntp_packet = (ntp_packet_t *)p->payload;
@@ -418,8 +427,7 @@ static void _ntp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     // Set RTC with synchronized time
     if (!rtc_set_datetime(&t))
     {
-        stdio_puts("Error: Invalid datetime!");
-        _ntp_handle_error();
+        _ntp_handle_error("Invalid datetime recieved");
         return;
     }
     // sets the sync flag and timeout
@@ -430,7 +438,7 @@ static void _ntp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
     sync_retry_delay = base_retry_delay_ms;
     set_error(ERROR_NTP_SYNC_FAILED, false);
 
-    stdio_puts("RTC synchronized with NTP!");
+    log_message(LOG_INFO, LOG_NTP, "RTC synchronized with NTP");
 
     // frees memory allocated to package buffer
     pbuf_free(p);
