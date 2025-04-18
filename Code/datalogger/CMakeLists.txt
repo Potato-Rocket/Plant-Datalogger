@@ -52,12 +52,14 @@ target_link_libraries(datalogger
 
 # Add third party libraries
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/pico_dht/dht)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI)
 
 # Add the standard include files to the build
 target_include_directories(datalogger PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/lib/pico_dht/dht/include
+        ${CMAKE_CURRENT_LIST_DIR}/lib/no-OS-FatFS-SD-SPI-RPi-Pico/FatFs_SPI/include
         )
 
 # Add any user requested libraries
@@ -66,6 +68,7 @@ target_link_libraries(datalogger
         hardware_adc
         pico_cyw43_arch_lwip_threadsafe_background
         dht
+        FatFs_SPI
         )
 
 add_custom_command(TARGET datalogger
