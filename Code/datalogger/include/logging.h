@@ -17,6 +17,8 @@ typedef enum
     LOG_NTP,
     LOG_SENSOR,
     LOG_RTC,
+    LOG_BUTTON,
+    LOG_LED,
 } LogCategory;
 
 void log_message(LogLevel lvl, LogCategory cat, const char *fmt, ...);

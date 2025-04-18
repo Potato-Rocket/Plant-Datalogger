@@ -58,11 +58,13 @@ int main()
             // assume the rtc is more or less fine after init
             char buffer[64];
             get_pretty_datetime(&buffer[0], sizeof(buffer));
-            log_message(LOG_INFO, LOG_RTC, "\nLocal time: %s", buffer);
+            log_message(LOG_INFO, LOG_RTC, "Local time: %s", buffer);
 
             // update the sensors, print readings only if successful
             if (update_sensors())
+            {
                 print_readings();
+            }
         }
 
         sleep_ms(10);

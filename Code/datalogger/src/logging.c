@@ -1,6 +1,7 @@
-#include "logging.h"
 #include <stdarg.h>
 #include <stdio.h>
+
+#include "logging.h"
 
 static const char *log_level_str[] = {
     "ERROR",
@@ -15,6 +16,8 @@ static const char *log_category_str[] = {
     "NTP",
     "SENSOR",
     "RTC",
+    "BUTTON",
+    "LED",
 };
 
 static const LogLevel log_level = LOG_DEBUG;

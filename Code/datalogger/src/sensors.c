@@ -1,9 +1,11 @@
 #include <math.h>
+#include <stdio.h>
 
 #include "sensors.h"
 #include "utils.h"
 #include "button.h"
 #include "error_mgr.h"
+#include "logging.h"
 
 #include "hardware/adc.h"
 #include "hardware/dma.h"
@@ -98,28 +100,31 @@ void calibrate_soil(void)
     set_error(WARNING_RECALIBRATING, true);
     float endpoints[2] = {0};
 
-    stdio_puts("Calibrating soil sensor...");
+    log_message(LOG_INFO, LOG_SENSOR, "Calibrating soil sensor...");
     bool valid = false;
     while (!valid)
     {
-        
-        stdio_puts("Please wave soil sensor in air and press button.");
+        log_message(LOG_INFO, LOG_SENSOR, "Please wave soil sensor in air and press button");
         while (!check_press())
+        {
             tight_loop_contents();
+        }
 
         endpoints[0] = _read_soil();
-        stdio_printf("Dry reading: %.2f\n", endpoints[0]);
+        log_message(LOG_INFO, LOG_SENSOR, "Dry reading: %.2f", endpoints[0]);
 
-        stdio_puts("Please reconnect soil sensor and place in a cup of water.");
+        log_message(LOG_INFO, LOG_SENSOR, "Please place soil sensor in a cup of water");
         while (!check_press())
+        {
             tight_loop_contents();
+        }
 
         endpoints[1] = _read_soil();
-        stdio_printf("Wet reading: %.2f\n", endpoints[1]);
+        log_message(LOG_INFO, LOG_SENSOR, "Wet reading: %.2f", endpoints[1]);
 
         if (fabsf(endpoints[1] - endpoints[0]) < min_cal_diff)
         {
-            stdio_puts("Error: Measurements too similar!\n");
+            log_message(LOG_WARN, LOG_SENSOR, "Measurements too similar, please try again");
         }
         else
         {
@@ -129,7 +134,7 @@ void calibrate_soil(void)
 
     soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
-    stdio_printf("Soil sensor calibrated! Slope: %.5f, Intercept: %.1f\n",
+    log_message(LOG_INFO, LOG_SENSOR, "Soil sensor calibrated. Slope: %.5f, Intercept: %.1f",
            soil_cal.slope, soil_cal.intercept);
 
     set_error(WARNING_RECALIBRATING, false);
@@ -140,8 +145,8 @@ void calibrate_soil(void)
 void print_readings(void)
 {
     // formats most recent measurement
-    stdio_printf("Temperature: %.0f°C, Humidity: %.0f%%, "
-        "Soil moisture: %.1f%%\n",
+    log_message(LOG_INFO, LOG_SENSOR, "Temperature: %.0f°C, Humidity: %.0f%%, "
+        "Soil moisture: %.1f%%",
         measure.temp_celsius, measure.humidity, measure.soil_moisture);
 }
 
@@ -155,19 +160,8 @@ bool update_sensors(void)
     // read sensors and track whether successful
     if (!_read_dht(&measure))
     {
-        // retry sooner if failed
-        attempts++;
-        if (attempts == 10u)
-        {
-            set_error(ERROR_DHT11_READ_FAILED, true);
-            timeout = make_timeout_time_ms(update_delay_ms);
-            attempts = 0;
-            return false;
-        }
-        timeout = make_timeout_time_ms(retry_delay_ms);
         return false;
     }
-    set_error(ERROR_DHT11_READ_FAILED, false);
 
     // read soil moisture level
     float value = _read_soil() * soil_cal.slope + soil_cal.intercept;
@@ -195,7 +189,7 @@ static float _read_soil(void)
     // discard first reading to avoid incorrect measurements
     adc_read();
 
-    for (uint8_t i = 0; i < soil_count; i++)
+    for (uint16_t i = 0; i < soil_count; i++)
     {
         sleep_us(10);
         sum += adc_read();
@@ -207,14 +201,34 @@ static bool _read_dht(measurement_t *measure)
 {
     dht_start_measurement(&dht);
     dht_result_t result = dht_finish_measurement_blocking(&dht, &measure->humidity, &measure->temp_celsius);
-    switch (result) {
-        case DHT_RESULT_OK:
-            return true;
-        case DHT_RESULT_BAD_CHECKSUM:
-            stdio_puts("DHT read failed: Bad checksum");
-            return false;
-        case DHT_RESULT_TIMEOUT:
-            stdio_puts("DHT read failed: DHT timed out");
-            return false;
+    if (result == DHT_RESULT_OK) {
+        log_message(LOG_INFO, LOG_SENSOR, "DHT read successful");
+        set_error(ERROR_DHT11_READ_FAILED, false);
+        return true;
     }
+    
+    char msg[256];
+    switch (result)
+    {
+        case DHT_RESULT_BAD_CHECKSUM:
+            snprintf(&msg[0], sizeof(msg), "DHT read failed due to bad checksum");
+            break;
+        case DHT_RESULT_TIMEOUT:
+            snprintf(&msg[0], sizeof(msg), "DHT read timed out");
+            break;
+    }
+    attempts++;
+    // retry sooner if failed
+    if (attempts == 10u)
+    {
+        set_error(ERROR_DHT11_READ_FAILED, true);
+        log_message(LOG_ERROR, LOG_SENSOR, "%s! (%d)", msg, attempts);
+        timeout = make_timeout_time_ms(update_delay_ms);
+        attempts = 0;
+        return false;
+    }
+    log_message(LOG_WARN, LOG_SENSOR, "%s (%d)", msg, attempts);
+    timeout = make_timeout_time_ms(retry_delay_ms);
+    return false;
+
 }

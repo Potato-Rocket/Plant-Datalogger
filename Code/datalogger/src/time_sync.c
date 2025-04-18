@@ -229,6 +229,7 @@ bool ntp_init(void)
     while (!is_synchronized)
     {
         ntp_request_time();
+        sleep_ms(10);
     }
     init_flag = true;
     set_error(WARNING_INTIALIZING, false);
@@ -307,19 +308,19 @@ static void _ntp_handle_error(const char* fmt, ...)
         // double the next retry delay
         sync_retry_delay *= 2;
         // cap the retry delay
+        char temp[256];
         if (sync_retry_delay > max_retry_delay_ms)
         {
             sync_retry_delay = max_retry_delay_ms;
             // add an exclamation to the warning message
-            char temp[256];
-            snprintf(temp, sizeof(temp), "%s!", fmt);
-            log_message(LOG_ERROR, LOG_NTP, temp, args);
+            snprintf(temp, sizeof(temp), "%s! (%d)", fmt, sync_attempts);
             set_error(ERROR_NTP_SYNC_FAILED, true);
         }
         else 
         {
-            log_message(LOG_WARN, LOG_NTP, fmt, args);
+            snprintf(temp, sizeof(temp), "%s (%d)", fmt, sync_attempts);
         }
+        log_message(LOG_ERROR, LOG_NTP, temp, args);
     }
     else
     {
@@ -408,7 +409,7 @@ static void _ntp_recv_callback(void *arg, struct udp_pcb *pcb, struct pbuf *p,
         _ntp_handle_error("Packet of incorrect size: %d bytes", p->len);
         return;
     }
-    log_message(LOG_INFO, LOG_NTP, "Packet size OK: %d bytes", p->len);
+    log_message(LOG_DEBUG, LOG_NTP, "Packet size OK: %d bytes", p->len);
 
     // extract NTP packet from buffer
     ntp_packet_t *ntp_packet = (ntp_packet_t *)p->payload;

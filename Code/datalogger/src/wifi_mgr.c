@@ -42,7 +42,7 @@ bool wifi_init(void)
     // find the MAC address of the pico
     uint8_t mac[6];
     cyw43_wifi_get_mac(&cyw43_state, CYW43_ITF_STA, &mac[0]);
-    log_message(LOG_INFO, LOG_WIFI, "MAC address: %02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    log_message(LOG_DEBUG, LOG_WIFI, "MAC address: %02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     // connect to the network
     log_message(LOG_INFO, LOG_WIFI, "Connecting to Wi-Fi network...");

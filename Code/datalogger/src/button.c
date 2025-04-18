@@ -1,5 +1,6 @@
 #include "button.h"
 #include "utils.h"
+#include "logging.h"
 
 #define BUTTON_PIN 2u
 
@@ -54,6 +55,7 @@ bool check_press(void)
     // reset the button state
     if (result)
     {
+        log_message(LOG_DEBUG, LOG_BUTTON, "Short press reported");
         button_state = BUTTON_IDLE;
     }
     return result;
@@ -66,6 +68,7 @@ bool check_long_press(void)
     // reset the button state
     if (result)
     {
+        log_message(LOG_DEBUG, LOG_BUTTON, "Long press reported");
         button_state = BUTTON_IDLE;
     }
     return result;
@@ -84,6 +87,7 @@ static void _button_cb(uint __unused, uint32_t events)
     if (events & GPIO_IRQ_EDGE_FALL)
     {
         // update the date and press time
+        log_message(LOG_DEBUG, LOG_BUTTON, "Button press registered");
         button_state = BUTTON_PRESSED;
         press_start = get_absolute_time();
     }
@@ -91,6 +95,7 @@ static void _button_cb(uint __unused, uint32_t events)
     // if the button has been released
     if (events & GPIO_IRQ_EDGE_RISE)
     {
+        log_message(LOG_DEBUG, LOG_BUTTON, "Button release registered");
 
         // if the short press was not reported
         if (button_state == BUTTON_PRESSED)
