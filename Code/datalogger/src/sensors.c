@@ -111,7 +111,7 @@ void calibrate_soil(void)
         }
 
         endpoints[0] = _read_soil();
-        log_message(LOG_INFO, LOG_SENSOR, "Dry reading: %.2f", endpoints[0]);
+        log_message(LOG_DEBUG, LOG_SENSOR, "Dry reading: %.2f", endpoints[0]);
 
         log_message(LOG_INFO, LOG_SENSOR, "Please place soil sensor in a cup of water");
         while (!check_press())
@@ -120,7 +120,7 @@ void calibrate_soil(void)
         }
 
         endpoints[1] = _read_soil();
-        log_message(LOG_INFO, LOG_SENSOR, "Wet reading: %.2f", endpoints[1]);
+        log_message(LOG_DEBUG, LOG_SENSOR, "Wet reading: %.2f", endpoints[1]);
 
         if (fabsf(endpoints[1] - endpoints[0]) < min_cal_diff)
         {
@@ -134,8 +134,9 @@ void calibrate_soil(void)
 
     soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
-    log_message(LOG_INFO, LOG_SENSOR, "Soil sensor calibrated. Slope: %.5f, Intercept: %.1f",
-           soil_cal.slope, soil_cal.intercept);
+    log_message(LOG_INFO, LOG_SENSOR, "Soil sensor calibrated");
+    log_message(LOG_DEBUG, LOG_SENSOR, "Slope: %.5f, Intercept: %.1f",
+                soil_cal.slope, soil_cal.intercept);
 
     set_error(WARNING_RECALIBRATING, false);
 
@@ -146,8 +147,8 @@ void print_readings(void)
 {
     // formats most recent measurement
     log_message(LOG_INFO, LOG_SENSOR, "Temperature: %.0f°C, Humidity: %.0f%%, "
-        "Soil moisture: %.1f%%",
-        measure.temp_celsius, measure.humidity, measure.soil_moisture);
+                                      "Soil moisture: %.1f%%",
+                measure.temp_celsius, measure.humidity, measure.soil_moisture);
 }
 
 bool should_update_sensors(void)
@@ -204,22 +205,23 @@ static bool _read_dht(measurement_t *measure)
     // store the result of the dht measurement
     dht_result_t result = dht_finish_measurement_blocking(&dht, &measure->humidity, &measure->temp_celsius);
     // report success if the measurement succeeded
-    if (result == DHT_RESULT_OK) {
+    if (result == DHT_RESULT_OK)
+    {
         log_message(LOG_INFO, LOG_SENSOR, "DHT read successful");
         set_error(ERROR_DHT11_READ_FAILED, false);
         return true;
     }
-    
+
     // add a string to a buffer depending on the failure mode
     char msg[256];
     switch (result)
     {
-        case DHT_RESULT_BAD_CHECKSUM:
-            snprintf(&msg[0], sizeof(msg), "DHT read failed due to bad checksum");
-            break;
-        case DHT_RESULT_TIMEOUT:
-            snprintf(&msg[0], sizeof(msg), "DHT read timed out");
-            break;
+    case DHT_RESULT_BAD_CHECKSUM:
+        snprintf(&msg[0], sizeof(msg), "DHT read failed due to bad checksum");
+        break;
+    case DHT_RESULT_TIMEOUT:
+        snprintf(&msg[0], sizeof(msg), "DHT read timed out");
+        break;
     }
     // if tenth failure, report an error and try again later
     attempts++;
@@ -235,5 +237,4 @@ static bool _read_dht(measurement_t *measure)
     log_message(LOG_WARN, LOG_SENSOR, "%s (%d)", msg, attempts);
     timeout = make_timeout_time_ms(retry_delay_ms);
     return false;
-
 }

@@ -345,7 +345,8 @@ static void _ntp_dns_callback(const char *name, const ip_addr_t *addr,
 
     // save NTP server address
     memcpy(&ntp_server_addr, addr, sizeof(ip_addr_t));
-    log_message(LOG_INFO, LOG_NTP, "NTP server resolved to %s", ipaddr_ntoa(addr));
+    log_message(LOG_INFO, LOG_NTP, "DNS resolution succeeded");
+    log_message(LOG_DEBUG, LOG_NTP, "NTP server IP address: %s", ipaddr_ntoa(addr));
 
     // send NTP request
     _ntp_send_request();
