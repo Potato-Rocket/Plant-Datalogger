@@ -234,6 +234,7 @@ bool ntp_init(void)
     init_flag = true;
     set_error(WARNING_INTIALIZING, false);
 
+    // print the universal timestamp
     char buffer[32];
     get_timestamp(&buffer[0], sizeof(buffer));
     log_message(LOG_INFO, LOG_RTC, "UTC: %s", buffer);

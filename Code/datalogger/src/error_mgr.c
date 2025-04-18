@@ -78,7 +78,7 @@ void set_error(uint8_t code, bool enabled) {
         error_state &= ~code;
     }
 
-    // update the led state
+    // update the led state if the error state changed
     if (prev != error_state)
     {
         _update_led_state();

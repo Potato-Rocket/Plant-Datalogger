@@ -157,7 +157,7 @@ bool should_update_sensors(void)
 
 bool update_sensors(void)
 {
-    // read sensors and track whether successful
+    // try to read dht11
     if (!_read_dht(&measure))
     {
         return false;
@@ -199,14 +199,18 @@ static float _read_soil(void)
 
 static bool _read_dht(measurement_t *measure)
 {
+    // start the dht measurement
     dht_start_measurement(&dht);
+    // store the result of the dht measurement
     dht_result_t result = dht_finish_measurement_blocking(&dht, &measure->humidity, &measure->temp_celsius);
+    // report success if the measurement succeeded
     if (result == DHT_RESULT_OK) {
         log_message(LOG_INFO, LOG_SENSOR, "DHT read successful");
         set_error(ERROR_DHT11_READ_FAILED, false);
         return true;
     }
     
+    // add a string to a buffer depending on the failure mode
     char msg[256];
     switch (result)
     {
@@ -217,8 +221,8 @@ static bool _read_dht(measurement_t *measure)
             snprintf(&msg[0], sizeof(msg), "DHT read timed out");
             break;
     }
+    // if tenth failure, report an error and try again later
     attempts++;
-    // retry sooner if failed
     if (attempts == 10u)
     {
         set_error(ERROR_DHT11_READ_FAILED, true);
@@ -227,6 +231,7 @@ static bool _read_dht(measurement_t *measure)
         attempts = 0;
         return false;
     }
+    // otherwise, report a warning
     log_message(LOG_WARN, LOG_SENSOR, "%s (%d)", msg, attempts);
     timeout = make_timeout_time_ms(retry_delay_ms);
     return false;
