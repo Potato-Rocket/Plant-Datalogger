@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <math.h>
 
 #include "sensors.h"
@@ -7,11 +6,12 @@
 #include "error_mgr.h"
 
 #include "hardware/adc.h"
+// #include "pico/printf.h"
 
 #include "dht.h"
 
-#define DHT_PIN 6u
 #define DHT_MODEL DHT11
+#define DHT_PIN 6u
 #define SOIL_PIN 26u
 
 // to store temperature and humidity readings
@@ -98,27 +98,28 @@ void calibrate_soil(void)
     set_error(WARNING_RECALIBRATING, true);
     float endpoints[2] = {0};
 
-    printf("Calibrating soil sensor...\n");
+    stdio_puts("Calibrating soil sensor...");
     bool valid = false;
     while (!valid)
     {
-        printf("Please wave soil sensor in air and press button.\n");
+        
+        stdio_puts("Please wave soil sensor in air and press button.");
         while (!check_press())
             tight_loop_contents();
 
         endpoints[0] = _read_soil();
-        printf("Dry reading: %.2f\n", endpoints[0]);
+        stdio_printf("Dry reading: %.2f\n", endpoints[0]);
 
-        printf("Please reconnect soil sensor and place in a cup of water.\n");
+        stdio_puts("Please reconnect soil sensor and place in a cup of water.");
         while (!check_press())
             tight_loop_contents();
 
         endpoints[1] = _read_soil();
-        printf("Wet reading: %.2f\n", endpoints[1]);
+        stdio_printf("Wet reading: %.2f\n", endpoints[1]);
 
         if (fabsf(endpoints[1] - endpoints[0]) < min_cal_diff)
         {
-            printf("Error: Measurements too similar!\n");
+            stdio_puts("Error: Measurements too similar!\n");
         }
         else
         {
@@ -128,7 +129,7 @@ void calibrate_soil(void)
 
     soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
-    printf("Soil sensor calibrated! Slope: %.5f, Intercept: %.1f\n",
+    stdio_printf("Soil sensor calibrated! Slope: %.5f, Intercept: %.1f\n",
            soil_cal.slope, soil_cal.intercept);
 
     set_error(WARNING_RECALIBRATING, false);
@@ -139,8 +140,9 @@ void calibrate_soil(void)
 void print_readings(void)
 {
     // formats most recent measurement
-    printf("Temperature: %.0f°C, Humidity: %.0f%%, Soil moisture: %.1f%%\n",
-           measure.temp_celsius, measure.humidity, measure.soil_moisture);
+    stdio_printf("Temperature: %.0f°C, Humidity: %.0f%%, "
+        "Soil moisture: %.1f%%\n",
+        measure.temp_celsius, measure.humidity, measure.soil_moisture);
 }
 
 bool should_update_sensors(void)
@@ -209,10 +211,10 @@ static bool _read_dht(measurement_t *measure)
         case DHT_RESULT_OK:
             return true;
         case DHT_RESULT_BAD_CHECKSUM:
-            printf("DHT read failed: Bad checksum");
+            stdio_puts("DHT read failed: Bad checksum");
             return false;
         case DHT_RESULT_TIMEOUT:
-            printf("DHT read failed: DHT timed out");
+            stdio_puts("DHT read failed: DHT timed out");
             return false;
     }
 }
