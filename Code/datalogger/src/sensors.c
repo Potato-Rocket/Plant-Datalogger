@@ -1,17 +1,19 @@
-#include <stdio.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "sensors.h"
 #include "utils.h"
 #include "button.h"
 #include "error_mgr.h"
+#include "logging.h"
 
 #include "hardware/adc.h"
+#include "hardware/dma.h"
 
 #include "dht.h"
 
-#define DHT_PIN 6u
 #define DHT_MODEL DHT11
+#define DHT_PIN 6u
 #define SOIL_PIN 26u
 
 // to store temperature and humidity readings
@@ -41,7 +43,7 @@ static uint8_t attempts = 0;
 static dht_t dht;
 
 // number of soil moisture meaurements to average
-static const uint8_t soil_count = 100u;
+static const uint16_t soil_count = 1000u;
 // minumum difference between endpoints
 static const float min_cal_diff = 100.0f;
 // the calibration for the soil sensor
@@ -98,27 +100,31 @@ void calibrate_soil(void)
     set_error(WARNING_RECALIBRATING, true);
     float endpoints[2] = {0};
 
-    printf("Calibrating soil sensor...\n");
+    log_message(LOG_INFO, LOG_SENSOR, "Calibrating soil sensor...");
     bool valid = false;
     while (!valid)
     {
-        printf("Please wave soil sensor in air and press button.\n");
+        log_message(LOG_INFO, LOG_SENSOR, "Please wave soil sensor in air and press button");
         while (!check_press())
+        {
             tight_loop_contents();
+        }
 
         endpoints[0] = _read_soil();
-        printf("Dry reading: %.2f\n", endpoints[0]);
+        log_message(LOG_DEBUG, LOG_SENSOR, "Dry reading: %.2f", endpoints[0]);
 
-        printf("Please reconnect soil sensor and place in a cup of water.\n");
+        log_message(LOG_INFO, LOG_SENSOR, "Please place soil sensor in a cup of water");
         while (!check_press())
+        {
             tight_loop_contents();
+        }
 
         endpoints[1] = _read_soil();
-        printf("Wet reading: %.2f\n", endpoints[1]);
+        log_message(LOG_DEBUG, LOG_SENSOR, "Wet reading: %.2f", endpoints[1]);
 
         if (fabsf(endpoints[1] - endpoints[0]) < min_cal_diff)
         {
-            printf("Error: Measurements too similar!\n");
+            log_message(LOG_WARN, LOG_SENSOR, "Measurements too similar, please try again");
         }
         else
         {
@@ -128,8 +134,9 @@ void calibrate_soil(void)
 
     soil_cal.slope = 100.0f / (endpoints[1] - endpoints[0]);
     soil_cal.intercept = -soil_cal.slope * endpoints[0];
-    printf("Soil sensor calibrated! Slope: %.5f, Intercept: %.1f\n",
-           soil_cal.slope, soil_cal.intercept);
+    log_message(LOG_INFO, LOG_SENSOR, "Soil sensor calibrated");
+    log_message(LOG_DEBUG, LOG_SENSOR, "Slope: %.5f, Intercept: %.1f",
+                soil_cal.slope, soil_cal.intercept);
 
     set_error(WARNING_RECALIBRATING, false);
 
@@ -139,8 +146,9 @@ void calibrate_soil(void)
 void print_readings(void)
 {
     // formats most recent measurement
-    printf("Temperature: %.0f°C, Humidity: %.0f%%, Soil moisture: %.1f%%\n",
-           measure.temp_celsius, measure.humidity, measure.soil_moisture);
+    log_message(LOG_INFO, LOG_SENSOR, "Temperature: %.0f°C, Humidity: %.0f%%, "
+                                      "Soil moisture: %.1f%%",
+                measure.temp_celsius, measure.humidity, measure.soil_moisture);
 }
 
 bool should_update_sensors(void)
@@ -150,22 +158,11 @@ bool should_update_sensors(void)
 
 bool update_sensors(void)
 {
-    // read sensors and track whether successful
+    // try to read dht11
     if (!_read_dht(&measure))
     {
-        // retry sooner if failed
-        attempts++;
-        if (attempts == 10u)
-        {
-            set_error(ERROR_DHT11_READ_FAILED, true);
-            timeout = make_timeout_time_ms(update_delay_ms);
-            attempts = 0;
-            return false;
-        }
-        timeout = make_timeout_time_ms(retry_delay_ms);
         return false;
     }
-    set_error(ERROR_DHT11_READ_FAILED, false);
 
     // read soil moisture level
     float value = _read_soil() * soil_cal.slope + soil_cal.intercept;
@@ -193,7 +190,7 @@ static float _read_soil(void)
     // discard first reading to avoid incorrect measurements
     adc_read();
 
-    for (uint8_t i = 0; i < soil_count; i++)
+    for (uint16_t i = 0; i < soil_count; i++)
     {
         sleep_us(10);
         sum += adc_read();
@@ -203,16 +200,41 @@ static float _read_soil(void)
 
 static bool _read_dht(measurement_t *measure)
 {
+    // start the dht measurement
     dht_start_measurement(&dht);
+    // store the result of the dht measurement
     dht_result_t result = dht_finish_measurement_blocking(&dht, &measure->humidity, &measure->temp_celsius);
-    switch (result) {
-        case DHT_RESULT_OK:
-            return true;
-        case DHT_RESULT_BAD_CHECKSUM:
-            printf("DHT read failed: Bad checksum");
-            return false;
-        case DHT_RESULT_TIMEOUT:
-            printf("DHT read failed: DHT timed out");
-            return false;
+    // report success if the measurement succeeded
+    if (result == DHT_RESULT_OK)
+    {
+        log_message(LOG_INFO, LOG_SENSOR, "DHT read successful");
+        set_error(ERROR_DHT11_READ_FAILED, false);
+        return true;
     }
+
+    // add a string to a buffer depending on the failure mode
+    char msg[256];
+    switch (result)
+    {
+    case DHT_RESULT_BAD_CHECKSUM:
+        snprintf(&msg[0], sizeof(msg), "DHT read failed due to bad checksum");
+        break;
+    case DHT_RESULT_TIMEOUT:
+        snprintf(&msg[0], sizeof(msg), "DHT read timed out");
+        break;
+    }
+    // if tenth failure, report an error and try again later
+    attempts++;
+    if (attempts == 10u)
+    {
+        set_error(ERROR_DHT11_READ_FAILED, true);
+        log_message(LOG_ERROR, LOG_SENSOR, "%s! (%d)", msg, attempts);
+        timeout = make_timeout_time_ms(update_delay_ms);
+        attempts = 0;
+        return false;
+    }
+    // otherwise, report a warning
+    log_message(LOG_WARN, LOG_SENSOR, "%s (%d)", msg, attempts);
+    timeout = make_timeout_time_ms(retry_delay_ms);
+    return false;
 }

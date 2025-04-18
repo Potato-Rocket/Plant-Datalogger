@@ -1,6 +1,5 @@
-#include <stdio.h>
-
 #include "error_mgr.h"
+#include "logging.h"
 
 #define LED_PIN 22u
 
@@ -70,6 +69,7 @@ void init_errors(uint8_t code) {
 }
 
 void set_error(uint8_t code, bool enabled) {
+    uint8_t prev = error_state;
     if (enabled) {
         // Set the error bit
         error_state |= code;
@@ -78,8 +78,11 @@ void set_error(uint8_t code, bool enabled) {
         error_state &= ~code;
     }
 
-    // update the led state
-    _update_led_state();
+    // update the led state if the error state changed
+    if (prev != error_state)
+    {
+        _update_led_state();
+    }
 }
 
 static void _update_led_state(void) {
@@ -118,6 +121,8 @@ static void _update_led_state(void) {
 
 static void _enter_state_off(void) {
 
+    log_message(LOG_DEBUG, LOG_LED, "Indicator turned off, steady");
+
     switch (led_state) {
         // if already in OFF state, do nothing
         case LED_OFF:
@@ -140,6 +145,8 @@ static void _enter_state_off(void) {
 }
 
 static void _enter_state_on(void) {
+
+    log_message(LOG_DEBUG, LOG_LED, "Indicator turned on, steady");
 
     switch (led_state) {
         // if already in ON state, do nothing
@@ -164,6 +171,8 @@ static void _enter_state_on(void) {
 
 static void _enter_state_flash(void) {
 
+    log_message(LOG_DEBUG, LOG_LED, "Indicator changed to flashing mode");
+
     switch (led_state) {
         // if already in FLASH state, do nothing
         case LED_FLASH:
@@ -182,6 +191,8 @@ static void _enter_state_flash(void) {
 }
 
 static void _enter_state_flicker(void) {
+
+    log_message(LOG_DEBUG, LOG_LED, "Indicator changed to flickering mode");
 
     switch (led_state) {
         // if already in FLICKER state, do nothing
