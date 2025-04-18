@@ -6,7 +6,7 @@
 #include "error_mgr.h"
 
 #include "hardware/adc.h"
-// #include "pico/printf.h"
+#include "hardware/dma.h"
 
 #include "dht.h"
 
@@ -41,7 +41,7 @@ static uint8_t attempts = 0;
 static dht_t dht;
 
 // number of soil moisture meaurements to average
-static const uint8_t soil_count = 100u;
+static const uint16_t soil_count = 1000u;
 // minumum difference between endpoints
 static const float min_cal_diff = 100.0f;
 // the calibration for the soil sensor

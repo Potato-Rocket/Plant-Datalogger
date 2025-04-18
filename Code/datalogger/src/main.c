@@ -12,7 +12,7 @@ int main()
     // wait up to five seconds for the serial port to open
     stdio_init_all();
     sleep_ms(5000);
-    stdio_puts("Initializing startup...");
+    log_message(LOG_INFO, LOG_SYSTEM, "Initializing startup...");
 
     // initialize error indicator state machine
     init_errors(WARNING_INTIALIZING | WARNING_RECALIBRATING);
