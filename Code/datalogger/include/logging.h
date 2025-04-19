@@ -2,6 +2,8 @@
 
 #include "pico/stdlib.h"
 
+#define MAX_MESSAGE_SIZE 256u
+
 /**
  * The levels of log messages.
  */
@@ -29,6 +31,12 @@ typedef enum
 } LogCategory;
 
 /**
+ * Initialize the logging system. Ensures that log levels are set up correctly
+ * and allocates memory for a message storage buffer.
+ */
+bool init_log(void);
+
+/**
  * Structured logging function. If the log level is above the defined logging
  * level, the message will be printed with a timestamp, the message level, and
  * the message category. Formats strings using `printf`, appends a newline
@@ -40,3 +48,5 @@ typedef enum
  * @param ... Additional formatting parameters
  */
 void log_message(LogLevel lvl, LogCategory cat, const char *fmt, ...);
+
+void flush_log_buffer(void);

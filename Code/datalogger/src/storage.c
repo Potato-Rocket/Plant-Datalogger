@@ -72,24 +72,17 @@ spi_t *spi_get_by_num(size_t num)
 
 static sd_card_t *sd = NULL;
 
-bool init_sd(void) {
+bool init_sd(void)
+{
     sd = sd_get_by_num(0);
 
-    log_message(LOG_INFO, LOG_SD, "Mounting SD card...");
-    FRESULT fr = f_mount(&sd->fatfs, sd->pcName, 1);
+    mount_sd();
     FATFS *fs = &sd->fatfs;
-
-    if (FR_OK != fr)
-    {
-        log_message(LOG_ERROR, LOG_SD, "f_mount error: %s (%d)", FRESULT_str(fr), fr);
-        return false;
-    }
-    log_message(LOG_INFO, LOG_SD, "Successfully mounted SD card");
 
     DWORD fre_clust, fre_sect, tot_sect;
 
     /* Get volume information and free clusters of drive 1 */
-    fr = f_getfree(sd->pcName, &fre_clust, &fs);
+    FRESULT fr = f_getfree(sd->pcName, &fre_clust, &fs);
     if (FR_OK != fr)
     {
         log_message(LOG_WARN, LOG_SD, "f_getfree error: %s (%d)", FRESULT_str(fr), fr);
@@ -107,10 +100,10 @@ bool init_sd(void) {
     log_message(LOG_INFO, LOG_SD, "Unmounted SD card");
 
     return true;
-
 }
 
-bool open_sd(void) {
+bool mount_sd(void)
+{
 
     FRESULT fr = f_mount(&sd->fatfs, sd->pcName, 1);
 
@@ -119,10 +112,15 @@ bool open_sd(void) {
         log_message(LOG_ERROR, LOG_SD, "f_mount error: %s (%d)", FRESULT_str(fr), fr);
         return false;
     }
+    log_message(LOG_INFO, LOG_SD, "Successfully mounted SD card");
+    return true;
+}
 
+bool write_line(const char* fname, const char* text)
+{
     FIL file;
-    const char* const filename = "filename.txt";
-    fr = f_open(&file, filename, FA_OPEN_APPEND | FA_WRITE);
+    const char *const filename = "filename.txt";
+    FRESULT fr = f_open(&file, filename, FA_OPEN_APPEND | FA_WRITE);
 
     if (FR_OK != fr && FR_EXIST != fr)
     {
@@ -132,14 +130,16 @@ bool open_sd(void) {
 
     bool success = true;
 
-    if (f_printf(&file, "Hello, world!\n") < 0) {
+    if (f_printf(&file, "Hello, world!\n") < 0)
+    {
         log_message(LOG_WARN, LOG_SD, "f_printf failed");
         success = false;
     }
 
     fr = f_close(&file);
 
-    if (FR_OK != fr) {
+    if (FR_OK != fr)
+    {
         log_message(LOG_WARN, LOG_SD, "f_close error: %s (%d)", FRESULT_str(fr), fr);
         success = false;
     }
@@ -147,4 +147,9 @@ bool open_sd(void) {
     f_unmount(sd->pcName);
 
     return success;
+}
+
+void unmount_sd(void)
+{
+    f_unmount(sd->pcName);
 }

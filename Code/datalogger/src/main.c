@@ -13,7 +13,10 @@ int main()
     // wait up to five seconds for the serial port to open
     stdio_init_all();
     sleep_ms(5000);
-    log_message(LOG_INFO, LOG_SYSTEM, "Initializing datalogger...");
+    
+    if (!init_log()) {
+        return -1;
+    }
 
     init_sd();
 

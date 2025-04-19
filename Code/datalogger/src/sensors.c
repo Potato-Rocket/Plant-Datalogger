@@ -213,7 +213,7 @@ static bool _read_dht(measurement_t *measure)
     }
 
     // add a string to a buffer depending on the failure mode
-    char msg[256];
+    char msg[MAX_MESSAGE_SIZE];
     switch (result)
     {
     case DHT_RESULT_BAD_CHECKSUM:

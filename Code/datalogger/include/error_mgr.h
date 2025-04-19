@@ -5,8 +5,7 @@
 /**
  * Error code masks for various error states.
  */
-enum ErrorCode
-{
+enum ErrorCode {
     ERROR_NONE = 0b00000000,              // all systems nominal
     ERROR_WIFI_DISCONNECTED = 0b00000001, // wifi reconnection standoff maxed
     ERROR_NTP_SYNC_FAILED = 0b00000010,   // ntp retry standoff maxed

@@ -20,8 +20,7 @@
 #define TIME_ZONE_OFFSET -4l
 
 // NTP packet structure (48 bytes)
-typedef struct __attribute__((packed))
-{
+typedef struct __attribute__((packed)) {
     uint8_t li_vn_mode;       // Leap Indicator, Version Number, Mode
     uint8_t stratum;          // Stratum level
     uint8_t poll;             // Poll interval
@@ -309,7 +308,7 @@ static void _ntp_handle_error(const char* fmt, ...)
         // double the next retry delay
         sync_retry_delay *= 2;
         // cap the retry delay
-        char temp[256];
+        char temp[MAX_MESSAGE_SIZE];
         if (sync_retry_delay > max_retry_delay_ms)
         {
             sync_retry_delay = max_retry_delay_ms;

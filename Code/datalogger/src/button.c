@@ -19,8 +19,7 @@ static absolute_time_t press_start = 0;
 /**
  * Enumeration to keep track of what event the button should report
  */
-typedef enum
-{
+typedef enum {
     BUTTON_IDLE,         // no events to report
     BUTTON_PRESSED,      // button pressed but not released or reported
     BUTTON_LONG_PRESSED, // button long pressed but not reported
