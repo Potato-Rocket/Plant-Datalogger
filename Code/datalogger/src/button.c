@@ -41,10 +41,13 @@ void init_button(void)
     gpio_init(BUTTON_PIN);
     gpio_set_dir(BUTTON_PIN, GPIO_IN);
     gpio_pull_up(BUTTON_PIN);
-
     // set up button callback
     gpio_set_irq_enabled_with_callback(BUTTON_PIN,
-                                       GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE, true, &_button_cb);
+                                       GPIO_IRQ_EDGE_FALL | GPIO_IRQ_EDGE_RISE,
+                                       true, &_button_cb);
+    
+    log_message(LOG_DEBUG, LOG_BUTTON, "Set up button callback");
+    sleep_ms(100);
 }
 
 bool check_press(void)

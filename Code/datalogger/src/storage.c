@@ -10,6 +10,7 @@
 #include "f_util.h"
 
 #define INDICATOR 7u
+#define MAX_FILE_SIZE (1024u * 32u)
 
 // Hardware Configuration of SPI "objects"
 // Note: multiple SD cards can be driven by one SPI if they use different slave
@@ -94,10 +95,10 @@ bool init_sd(void)
     fre_sect = fre_clust * fs->csize;
 
     /* Print the free space (assuming 512 bytes/sector) */
-    log_message(LOG_INFO, LOG_SD, "%10lu KiB total drive space, %10lu KiB available", tot_sect / 2, fre_sect / 2);
+    log_message(LOG_INFO, LOG_SD, "%10lu KiB total drive space", tot_sect / 2);
+    log_message(LOG_INFO, LOG_SD, "%10lu KiB available drive space", fre_sect / 2);
 
-    f_unmount(sd->pcName);
-    log_message(LOG_INFO, LOG_SD, "Unmounted SD card");
+    unmount_sd();
 
     return true;
 }
@@ -116,40 +117,81 @@ bool mount_sd(void)
     return true;
 }
 
-bool write_line(const char* fname, const char* text)
+void sd_get_log_fname(char *fname, size_t size)
 {
-    FIL file;
-    const char *const filename = "filename.txt";
-    FRESULT fr = f_open(&file, filename, FA_OPEN_APPEND | FA_WRITE);
-
-    if (FR_OK != fr && FR_EXIST != fr)
+    strncpy(fname, "log.0.txt", size);
+    if (!mount_sd())
     {
-        log_message(LOG_ERROR, LOG_SD, "f_open(%s) error: %s (%d)", filename, FRESULT_str(fr), fr);
+        return;
+    }
+
+    DIR dir;         /* Directory object */
+    FILINFO fno;    /* File information */
+    int highest_num = 0;
+    bool is_full = false;
+
+    FRESULT fr = f_findfirst(&dir, &fno, "", "log.*.txt");
+    while (fr == FR_OK && fno.fname[0]) {
+        printf("%s\n", fno.fname);                /* Print the object name */
+        int file_num;
+        if (sscanf(fno.fname, "log.%d.txt", &file_num) == 1)
+        {
+            if (file_num > highest_num)
+            {
+                highest_num = file_num;
+
+                // Check if this file is under size limit
+                is_full = fno.fsize > MAX_FILE_SIZE;
+            }
+        }
+
+        fr = f_findnext(&dir, &fno);
+    }
+
+    f_closedir(&dir);
+
+    snprintf(fname, size, "log.%d.txt", highest_num + is_full);
+    printf("Final: %s\n", fname);             /* Print the object name */
+
+}
+
+bool sd_write_lines(const char *fname, line_getter_callback_t get_line, size_t max_lines)
+{
+    if (!mount_sd())
+    {
         return false;
     }
 
-    bool success = true;
-
-    if (f_printf(&file, "Hello, world!\n") < 0)
+    FIL fil;
+    FRESULT fr = f_open(&fil, fname, FA_OPEN_APPEND | FA_WRITE);
+    if (fr != FR_OK)
     {
-        log_message(LOG_WARN, LOG_SD, "f_printf failed");
-        success = false;
+        log_message(LOG_ERROR, LOG_SD, "Failed to open %s", fname);
+        return false;
     }
+    log_message(LOG_INFO, LOG_SD, "Opened %s successfully", fname);
 
-    fr = f_close(&file);
+    int count = 0;
+    char buffer[MAX_MESSAGE_SIZE];
 
-    if (FR_OK != fr)
+    while (get_line(buffer, sizeof(buffer)))
     {
-        log_message(LOG_WARN, LOG_SD, "f_close error: %s (%d)", FRESULT_str(fr), fr);
-        success = false;
+        f_puts(buffer, &fil);
+        f_putc('\n', &fil);
+        count++;
+        if (count == max_lines) {
+            break;
+        }
     }
+    log_message(LOG_INFO, LOG_SD, "Wrote %d lines to %s", count, fname);
 
-    f_unmount(sd->pcName);
+    f_close(&fil);
+    log_message(LOG_INFO, LOG_SD, "Closed %s", fname);
 
-    return success;
 }
 
 void unmount_sd(void)
 {
     f_unmount(sd->pcName);
+    log_message(LOG_INFO, LOG_SD, "Unmounted SD card");
 }

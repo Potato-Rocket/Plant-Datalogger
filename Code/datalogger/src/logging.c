@@ -3,15 +3,16 @@
 #include <string.h>
 
 #include "logging.h"
+#include "storage.h"
 
-#define LOG_BUFFER_SIZE (1024u * 8u)
+#define LOG_BUFFER_SIZE (1024u * 4u)
 
 // a circular character buffer for storing messages
 typedef struct {
     char buffer[LOG_BUFFER_SIZE];
     uint16_t read_index;
     uint16_t write_index;
-    uint16_t count;
+    int count;
 } log_buffer_t;
 
 static log_buffer_t log_buffer;
@@ -43,6 +44,8 @@ static const LogLevel store_level = LOG_INFO;
 // the lowest log level to cache in flash if storage unavailable
 static const LogLevel critical_level = LOG_ERROR;
 
+static bool is_flushing = false;
+
 /**
  * Writes a string to the circular log buffer.
  */
@@ -51,7 +54,7 @@ static bool _write_buffer(const char *message, size_t size);
 /**
  * Reads a string from the circular log buffer.
  */
-static bool _write_buffer(const char *message, size_t size);
+static bool _read_buffer(char *message, size_t size);
 
 bool init_log(void) {
     if (!(store_level >= critical_level && print_level >= store_level)) {
@@ -95,7 +98,7 @@ void log_message(LogLevel lvl, LogCategory cat, const char *fmt, ...)
 
     if (lvl <= store_level)
     {
-        if (!_write_buffer(buffer, sizeof(buffer)))
+        if (!_write_buffer(buffer, sizeof(buffer)) && !is_flushing)
         {
             flush_log_buffer();
             _write_buffer(buffer, sizeof(buffer));
@@ -104,9 +107,17 @@ void log_message(LogLevel lvl, LogCategory cat, const char *fmt, ...)
 
 }
 
+/**
+ * Flushes the log buffer to the SD card. Unmounts the SD card afterwards.
+ */
 void flush_log_buffer(void)
 {
-
+    is_flushing = true;
+    char fname[64];
+    sd_get_log_fname(fname, sizeof(fname));
+    sd_write_lines(fname, _read_buffer, log_buffer.count);
+    unmount_sd();
+    is_flushing = false;
 }
 
 bool _write_buffer(const char *message, size_t size)
@@ -118,10 +129,16 @@ bool _write_buffer(const char *message, size_t size)
 
     // where to start writing the next string
     char *write_position = &log_buffer.buffer[log_buffer.write_index];
+    printf("Write position: %d\n", log_buffer.write_index);
+    printf("Read position: %d\n", log_buffer.read_index);
     // how much space is left before wrapping is needed
     size_t space_available = LOG_BUFFER_SIZE - log_buffer.write_index;
+    printf("Space available: %d\n", space_available);
     // size of string to pring, including the null terminator
     size_t len = strnlen(message, MAX_MESSAGE_SIZE) + 1;
+    printf("Message length: %d\n", len);
+
+    sleep_ms(10);
 
     // if the string will overflow the buffer
     if (len > space_available)
@@ -129,8 +146,8 @@ bool _write_buffer(const char *message, size_t size)
         // calculate how many characters will overflow
         size_t overflow = len - space_available;
         // if the read index is too close, don't write
-        if (log_buffer.write_index <= log_buffer.read_index ||
-            overflow > log_buffer.read_index)
+        if (log_buffer.write_index < log_buffer.read_index ||
+            overflow >= log_buffer.read_index)
         {
             return false;
         }
@@ -140,13 +157,12 @@ bool _write_buffer(const char *message, size_t size)
         memcpy(&log_buffer.buffer[0], message + space_available, overflow);
         // reset the write index
         log_buffer.write_index = overflow;
-        return true;
     }
     else
     {
         // if the read index is too close, don't write
-        if (log_buffer.write_index <= log_buffer.read_index &&
-            log_buffer.write_index + len > log_buffer.read_index)
+        if (log_buffer.write_index < log_buffer.read_index &&
+            log_buffer.write_index + len >= log_buffer.read_index)
         {
             return false;
         }
@@ -154,14 +170,21 @@ bool _write_buffer(const char *message, size_t size)
         memcpy(write_position, message, len);
         log_buffer.write_index += len;
     }
-    
+     
     log_buffer.count++;
     return true;
 }
 
-bool _read_buffer(char *buffer)
+bool _read_buffer(char *buffer, size_t size)
 {
-    size_t size = MAX_MESSAGE_SIZE;
+    if (size < MAX_MESSAGE_SIZE)
+    {
+        return false;
+    }
+    else if (size > MAX_MESSAGE_SIZE)
+    {
+        size = MAX_MESSAGE_SIZE;
+    }
 
     if (log_buffer.count == 0)
     {

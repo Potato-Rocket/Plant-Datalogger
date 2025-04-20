@@ -13,7 +13,7 @@ int main()
     // wait up to five seconds for the serial port to open
     stdio_init_all();
     sleep_ms(5000);
-    
+
     if (!init_log()) {
         return -1;
     }
@@ -42,6 +42,7 @@ int main()
     }
 
     // initialize sensors
+    flush_log_buffer();
     init_button();
     init_sensors();
 
@@ -77,6 +78,7 @@ int main()
             {
                 print_readings();
             }
+            flush_log_buffer();
         }
 
         sleep_ms(10);
